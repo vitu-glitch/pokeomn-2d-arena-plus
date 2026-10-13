@@ -337,6 +337,7 @@ export class CombatRenderer {
     if(arena?.ready)ctx.drawImage(arena.image,SCENE.x,SCENE.y,SCENE.w,SCENE.h);
     else{ctx.fillStyle='#344858';ctx.fillRect(SCENE.x,SCENE.y,SCENE.w,SCENE.h);ctx.strokeStyle='#8fa6ab';ctx.strokeRect(0,0,1200,760);}
     this.drawGroundEffects(dt,arenaId);
+    this.drawZone(state?.zone);
     this.drawObstacles(battle.arena?.obstacles||[],arenaId);
     this.drawPpOrbs(state?.ppOrbs||[],now);
     const fighters=[...(state?.fighters||[])].sort((a,b)=>a.y-b.y);
@@ -357,6 +358,29 @@ export class CombatRenderer {
     const enemy=fighters.find(f=>f.team!==selfTeam);
     if(enemy&&enemy.hp>0)this.drawOffscreenOpponent(enemy);
     for(const [id,record] of this.characters)if(!fighters.some(f=>f.id===id)){record.element?.remove();this.characters.delete(id);}
+  }
+
+  drawZone(zone) {
+    if(!zone||!Number.isFinite(zone.radius))return;
+    const ctx=this.ctx;
+    if(zone.closing){
+      ctx.save();
+      ctx.fillStyle='rgba(82,17,31,.27)';
+      ctx.beginPath();
+      ctx.rect(0,0,1200,760);
+      ctx.arc(zone.x,zone.y,Math.max(0,zone.radius),0,Math.PI*2,true);
+      try{ctx.fill('evenodd');}catch{ctx.fill();}
+      ctx.restore();
+    }
+    ctx.save();
+    ctx.strokeStyle=zone.closing?'#ff9a9acc':'#c9e8ff70';
+    ctx.lineWidth=zone.closing?4:2;
+    ctx.setLineDash(zone.closing?[12,9]:[7,10]);
+    ctx.beginPath();
+    ctx.arc(zone.x,zone.y,Math.max(0,zone.radius),0,Math.PI*2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
   }
 
   drawPpOrbs(orbs,now) {
