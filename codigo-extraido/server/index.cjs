@@ -196,6 +196,11 @@ async function startServer({port=0,host='127.0.0.1',rootDir=path.join(__dirname,
           const teamSpecs=[{name:player.name,team:selected},...rivals];
           launch([player],teamSpecs,{mode:'battle-royale',arena:ARENAS[message.arena]?message.arena:'stadium',cpuLevel:4});
         }
+        else if(message.type==='pause') {
+          const entry=battles.get(player.battle);
+          if(!entry||!player.local||player.team!==0)return;
+          entry.battle.setPaused(message.paused);
+        }
         else if(message.type==='input') {
           const entry=battles.get(player.battle);if(!entry||entry.battle.mode==='demo')return;
           if(Number.isFinite(message.seq)&&message.seq<=player.lastSeq)return;
