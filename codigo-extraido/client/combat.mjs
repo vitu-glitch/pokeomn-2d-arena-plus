@@ -387,62 +387,125 @@ export class CombatRenderer {
   }
 
   drawEvolution(f,pos,now) {
-    const transition=f.evolution;if(!transition)return;
-    const ctx=this.ctx,progress=clamp((transition.elapsed+clamp((now-this.lastSnapshot)/1000,0,.08))/Math.max(.1,transition.duration),0,1);
-    const pulse=.5+.5*Math.sin(now/58),radius=25+progress*34,flash=Math.pow(Math.max(0,Math.sin(now/83)),8);
-    ctx.save();ctx.translate(pos.x,pos.y-20);ctx.globalCompositeOperation='lighter';
+    const transition=f.evolution;
+    if(!transition)return;
+    const duration=Math.max(.1,Number(transition.duration)||2.6);
+    const progress=clamp((Number(transition.elapsed)||0)+clamp((now-this.lastSnapshot)/1000,0,.08),0,duration)/duration;
+    const ease=progress*progress*(3-2*progress);
+    const pulse=.5+.5*Math.sin(progress*Math.PI*9);
+    const next=this.species(transition.toSpecies);
+    const nextType=next?.types?.[0]||this.species(f.species)?.types?.[0]||'Fairy';
+    const accent=tint(nextType);
+    const ctx=this.ctx;
+    ctx.save();
+    ctx.translate(pos.x,pos.y-18);
+    ctx.globalCompositeOperation='lighter';
+    ctx.lineCap='round';
+    ctx.lineJoin='round';
 
-    // Bright central aura and the rotating rings used by classic evolution scenes.
-    ctx.globalAlpha=.26+.32*pulse;
-    const glow=ctx.createRadialGradient(0,0,2,0,0,54+progress*38);
-    glow.addColorStop(0,'rgba(255,255,255,1)');
-    glow.addColorStop(.28,'rgba(255,249,207,.78)');
-    glow.addColorStop(.62,'rgba(255,213,104,.24)');
-    glow.addColorStop(1,'rgba(255,211,110,0)');
-    ctx.fillStyle=glow;ctx.fillRect(-100,-100,200,165);
+    // Evolution is staged like a hand-keyed sprite effect: build, orbit, flash, resolve.
+    const orbit=22+ease*27;
+    ctx.globalAlpha=(.34+.18*pulse)*(1-progress*.38);
+    ctx.strokeStyle='#fff9e0';
+    ctx.lineWidth=1.5;
+    for(let ring=0;ring<2;ring++){
+      const rx=orbit+ring*7,ry=5+ring*2;
+      for(let segment=0;segment<3;segment++){
+        const start=segment*TAU/3+progress*TAU*(ring===0?1.1:-.72);
+        ctx.beginPath();
+        ctx.ellipse(0,4,rx,ry,ring?.12:-.1,start,start+.7+(ring*.2));
+        ctx.stroke();
+      }
+    }
 
-    ctx.globalAlpha=.48+.48*pulse;ctx.strokeStyle='#fff9dc';ctx.lineWidth=2;
-    for(let ring=0;ring<4;ring++){
-      ctx.save();
-      ctx.rotate((now/560)*(ring%2?-.9:1)+ring*1.57);
+    // Two tapered light ribbons wrap around the Pokémon.
+    for(let side=-1;side<=1;side+=2){
+      ctx.globalAlpha=(.18+.34*pulse)*(1-progress*.42);
+      ctx.strokeStyle=side<0?accent:'#fff4bf';
+      ctx.lineWidth=side<0?2.2:1.2;
       ctx.beginPath();
-      ctx.ellipse(0,0,radius+ring*5,8+ring*3,0,0,TAU);
-      ctx.stroke();ctx.restore();
+      ctx.moveTo(side*(10+progress*5),28);
+      ctx.bezierCurveTo(side*(orbit+13),18,side*(orbit-3),-13,side*(12+progress*8),-47);
+      ctx.stroke();
+      ctx.globalAlpha=(.3+.32*pulse)*(1-progress*.38);
+      ctx.lineWidth=1;
+      ctx.beginPath();
+      ctx.moveTo(side*(4+progress*4),24);
+      ctx.bezierCurveTo(side*(orbit*.72),8,side*(orbit*.67),-18,side*(4+progress*7),-39);
+      ctx.stroke();
     }
 
-    // Short rays spin around the Pokémon; individual motes orbit at different speeds.
-    ctx.lineWidth=1.5;ctx.strokeStyle='#fff3b7';
-    for(let ray=0;ray<10;ray++){
-      const angle=ray*TAU/10+now/330*(ray%2?1:-1),inner=13+pulse*7,outer=radius+9+(ray%3)*5;
-      ctx.globalAlpha=.22+.55*((Math.sin(now/95+ray)+1)/2);
-      ctx.beginPath();ctx.moveTo(Math.cos(angle)*inner,Math.sin(angle)*inner*.65);ctx.lineTo(Math.cos(angle)*outer,Math.sin(angle)*outer*.65);ctx.stroke();
-    }
-    for(let mote=0;mote<16;mote++){
-      const angle=mote*TAU/16+now/390*(mote%2?1:-1),orbit=radius+Math.sin(now/135+mote)*7;
-      const x=Math.cos(angle)*orbit,y=Math.sin(angle)*orbit*.62;
-      ctx.globalAlpha=.35+.65*((Math.sin(now/78+mote*1.3)+1)/2);
-      ctx.fillStyle=mote%4===0?'#fff':'#ffe78c';
-      ctx.beginPath();ctx.arc(x,y,mote%3===0?2.8:1.8,0,TAU);ctx.fill();
+    // Small, deterministic four-point glints travel upward on curved paths.
+    for(let i=0;i<10;i++){
+      const direction=i%2?1:-1;
+      const angle=i*TAU/10+progress*TAU*direction*.82;
+      const rise=progress*65;
+      const rx=18+(i%4)*6+Math.sin(progress*Math.PI)*7;
+      const x=Math.cos(angle)*rx;
+      const y=20-rise+Math.sin(angle*1.4+i)*5;
+      const glint=(.35+.65*Math.abs(Math.sin(progress*TAU*2+i*1.7)))*(1-progress*.27);
+      const size=(i%3===0?3:1.8)+pulse*.6;
+      ctx.globalAlpha=glint;
+      ctx.fillStyle=i%3===0?'#fffef1':accent;
+      ctx.beginPath();
+      ctx.moveTo(x,y-size*1.8);
+      ctx.lineTo(x+size*.48,y-size*.35);
+      ctx.lineTo(x+size*1.6,y);
+      ctx.lineTo(x+size*.35,y+size*.38);
+      ctx.lineTo(x,y+size*1.8);
+      ctx.lineTo(x-size*.35,y+size*.38);
+      ctx.lineTo(x-size*1.6,y);
+      ctx.lineTo(x-size*.48,y-size*.35);
+      ctx.closePath();
+      ctx.fill();
+      ctx.globalAlpha=glint*.72;
+      ctx.fillStyle='#fffef2';
+      ctx.fillRect(x-.55,y-.55,1.1,1.1);
     }
 
-    // A clean white pulse near the end marks the instant the new form appears.
-    if(progress>.68){
-      ctx.globalAlpha=(.08+.22*pulse+flash*.42)*(progress-.68)/.32;
-      ctx.fillStyle='#fff';
-      ctx.beginPath();ctx.ellipse(0,-2,22+progress*28,27+progress*30,0,0,TAU);ctx.fill();
+    // One authored burst marks the instant the new form appears.
+    const burst=Math.max(0,1-Math.abs(progress-.735)/.105);
+    if(burst>0){
+      const strength=burst*burst;
+      ctx.globalAlpha=.72*strength;
+      ctx.strokeStyle='#fffef4';
+      ctx.lineWidth=1.8;
+      for(let i=0;i<12;i++){
+        const angle=i*TAU/12-.08;
+        const inner=11+(i%3)*3;
+        const outer=(i%3===0?orbit+21:i%3===1?orbit+8:orbit+15)*strength+inner;
+        const bend=angle+((i%2)?1:-1)*.055;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(angle)*inner,Math.sin(angle)*inner*.7);
+        ctx.lineTo(Math.cos(bend)*outer*.62,Math.sin(bend)*outer*.43);
+        ctx.lineTo(Math.cos(angle+.025)*outer,Math.sin(angle+.025)*outer*.7);
+        ctx.stroke();
+      }
+      ctx.globalAlpha=.24*strength;
+      ctx.fillStyle=accent;
+      ctx.beginPath();
+      ctx.ellipse(0,0,orbit+25,orbit*.66,0,0,TAU);
+      ctx.fill();
+      ctx.globalAlpha=.95*strength;
+      ctx.fillStyle='#fffef4';
+      ctx.beginPath();
+      ctx.moveTo(0,-13);ctx.lineTo(3,-3);ctx.lineTo(13,0);ctx.lineTo(3,3);
+      ctx.lineTo(0,13);ctx.lineTo(-3,3);ctx.lineTo(-13,0);ctx.lineTo(-3,-3);
+      ctx.closePath();ctx.fill();
     }
-    ctx.globalAlpha=.9;ctx.textAlign='center';ctx.textBaseline='middle';
-    const source=this.species(transition.fromSpecies)?.name||f.name;
-    ctx.font='800 10px Barlow, sans-serif';ctx.fillStyle='#fff7cf';
-    ctx.shadowColor='#ffdb73';ctx.shadowBlur=8;
-    ctx.fillText(`WHAT? ${source.toUpperCase()} IS EVOLVING!`,0,-67,205);
-    const destination=this.species(transition.toSpecies)?.name;
-    if(destination){
-      ctx.shadowBlur=0;ctx.font='800 10px Barlow, sans-serif';ctx.fillStyle='#fff';
-      ctx.fillText(destination.toUpperCase(),0,61,160);
+
+    // Light resolves into a narrow vertical streak at the end.
+    if(progress>.84){
+      const resolve=clamp((progress-.84)/.16,0,1);
+      ctx.globalAlpha=(1-resolve)*.56;
+      ctx.strokeStyle='#fffef2';
+      ctx.lineWidth=2;
+      ctx.beginPath();ctx.moveTo(0,34);ctx.lineTo(0,-54);ctx.stroke();
+      ctx.globalAlpha=(1-resolve)*.32;
+      ctx.strokeStyle=accent;
+      ctx.lineWidth=6;
+      ctx.beginPath();ctx.moveTo(0,25);ctx.lineTo(0,-43);ctx.stroke();
     }
-    ctx.globalAlpha=.8;ctx.fillStyle='#111b2b99';ctx.fillRect(-31,74,62,3);
-    ctx.fillStyle='#ffe88c';ctx.fillRect(-30,75,60*progress,1);
     ctx.restore();
   }
 
@@ -630,7 +693,7 @@ export class CombatRenderer {
       if(f.deployment?.phase==='release'&&summon<.7)ctx.filter='brightness(4) saturate(0)';
       else if(record.hurtUntil>now&&Math.floor(now/55)%2===0)ctx.filter='brightness(1.65)';
       else if(f.status==='frz')ctx.filter='saturate(.35) brightness(1.15)';
-      else if(f.evolution){const phase=clamp((f.evolution.elapsed+clamp((now-this.lastSnapshot)/1000,0,.08))/Math.max(.1,f.evolution.duration),0,1),pulse=.5+.5*Math.sin(now/58),silhouette=phase<.18||Math.floor(now/95)%2===0;ctx.filter=silhouette?'brightness(0) invert(1) sepia(1) saturate(5) hue-rotate(345deg) drop-shadow(0 0 '+(5+pulse*10)+'px #fff1a3)':'brightness('+(1.2+pulse*2.1)+') saturate(1.8) drop-shadow(0 0 '+(4+pulse*8)+'px #fff1a3)';}
+      else if(f.evolution){const phase=clamp((f.evolution.elapsed+clamp((now-this.lastSnapshot)/1000,0,.08))/Math.max(.1,f.evolution.duration),0,1),pulse=.5+.5*Math.sin(phase*Math.PI*9),beat=phase<.12||(phase>.68&&phase<.82)||(phase>.17&&phase<.66&&Math.floor(phase*9)%2===0);ctx.filter=beat?'brightness(0) invert(1) drop-shadow(0 0 2px #fff) drop-shadow(0 0 '+(5+pulse*7)+'px #fffbe3)':'brightness('+(1.04+pulse*.18)+') saturate(1.18) drop-shadow(0 0 '+(2+pulse*3)+'px #fff7d8)';}
       const anchor=a.anchors?.[row]?.[frame] || [a.frameWidth/2,a.frameHeight/2+metrics.footOffset];
       ctx.drawImage(image,frame*a.frameWidth,row*a.frameHeight,a.frameWidth,a.frameHeight,-anchor[0],-anchor[1],a.frameWidth,a.frameHeight);
       ctx.restore();
@@ -661,7 +724,7 @@ export class CombatRenderer {
     element.style.opacity=String(visual.alpha*visual.summon);element.style.zIndex=String(10+Math.floor(pos.y/10));
     element.dataset.status=f.status||'';
     const img=element.firstElementChild;const evolutionScale=f.evolution?1.02+evolutionPulse*.055:1;img.style.transform=`translateY(${-step}px) scale(${horizontal*(.8+.2*visual.summon)*evolutionScale},${squash*(1-faintProgress*.55)*evolutionScale}) rotate(${lean+faintProgress*70}deg)`;
-    img.style.filter=f.evolution?(Math.floor(now/95)%2===0?`brightness(0) invert(1) sepia(1) saturate(5) hue-rotate(345deg) drop-shadow(0 0 ${5+evolutionPulse*10}px #fff1a3)`:`brightness(${1.2+evolutionPulse*2.1}) saturate(1.8) drop-shadow(0 0 ${4+evolutionPulse*8}px #fff1a3)`):desired==='hurt'?'brightness(1.7)':f.hp<=0?'saturate(.35)':'';
+    const evolutionPhase=f.evolution?clamp((f.evolution.elapsed+clamp((now-this.lastSnapshot)/1000,0,.08))/Math.max(.1,f.evolution.duration),0,1):0,evolutionBeat=evolutionPhase<.12||(evolutionPhase>.68&&evolutionPhase<.82)||(evolutionPhase>.17&&evolutionPhase<.66&&Math.floor(evolutionPhase*9)%2===0);img.style.filter=f.evolution?(evolutionBeat?'brightness(0) invert(1) drop-shadow(0 0 2px #fff) drop-shadow(0 0 '+(5+evolutionPulse*7)+'px #fffbe3)':'brightness('+(1.04+evolutionPulse*.18)+') saturate(1.18) drop-shadow(0 0 '+(2+evolutionPulse*3)+'px #fff7d8)'):desired==='hurt'?'brightness(1.7)':f.hp<=0?'saturate(.35)':'';
     record.drawnAnimation=`runtime-${desired}`;record.drawnFrame=Math.floor(record.walkTime*8)%4;record.drawnRow=record.row;
   }
 
