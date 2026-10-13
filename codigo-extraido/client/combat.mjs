@@ -218,7 +218,7 @@ export class CombatRenderer {
       if(event.kind==='deployRelease'){this.audio.cry(event.species||fighter?.species);this.burst(event.x,event.y-14,'Normal',16,70);}
       if(event.kind==='recall'){this.audio.recall();const old=previous?.fighters?.find(f=>f.team===event.team&&f.species===event.sourceSpecies);this.recalls.push({species:event.sourceSpecies,x:event.x,y:event.y,facing:old?.facing||{x:1,y:0},life:.28,max:.28});}
       if(event.kind==='ppPickup'){this.audio.heal();this.burst(event.x,event.y-8,'Psychic',10,45);}
-      if (['status','evolution','levelUp','elimination','xp'].includes(event.kind) && event.text && !(event.kind==='xp'&&state.events?.some(item=>item.team===event.team&&['evolution','levelUp'].includes(item.kind)))) this.notice(event.text,event.type||'Normal');
+      if (['status','evolution','levelUp','elimination','xp'].includes(event.kind) && event.text && !event.silent && !(event.kind==='xp'&&state.events?.some(item=>item.team===event.team&&['evolution','levelUp'].includes(item.kind)))) this.notice(event.text,event.type||'Normal');
     }
     for (const effect of state.effects || []) {
       const key = `fx:${effect.id}`;
