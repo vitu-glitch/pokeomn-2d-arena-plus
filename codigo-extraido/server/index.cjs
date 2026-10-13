@@ -7,7 +7,7 @@ const crypto=require('node:crypto');
 const express=require('express');
 const {WebSocketServer,WebSocket}=require('ws');
 const {Battle,ARENAS,SUPPORTED_ABILITIES,DEPLOYMENT}=require('./engine.cjs');
-const {validateTeam,idOf,ARENA_DAMAGE_SCALE}=require('./rules.cjs');
+const {validateTeam,idOf,ARENA_DAMAGE_SCALE,Dex}=require('./rules.cjs');
 const {CampaignStore,STAGES}=require('./campaign.cjs');
 
 const send=(socket,data)=>{if(socket.readyState===WebSocket.OPEN && socket.bufferedAmount<512*1024)socket.send(JSON.stringify(data));};
@@ -38,12 +38,18 @@ async function startServer({port=0,host='127.0.0.1',rootDir=path.join(__dirname,
   rootDir=path.resolve(rootDir);saveDir=path.resolve(saveDir);
   const catalogPath=path.join(rootDir,'client','data','catalog.json');
   const catalog=JSON.parse(fs.readFileSync(catalogPath,'utf8'));
+  for(const species of catalog.species){
+    const canonical=Dex.species.get(species.id);
+    const total=Object.values(canonical?.baseStats||species.baseStats||{}).reduce((sum,value)=>sum+Number(value||0),0);
+    species.battleRoyaleStarter=Boolean(canonical&&!canonical.prevo&&Array.isArray(canonical.evos)&&canonical.evos.length>0&&!canonical.forme&&!canonical.isNonstandard&&!['Uber','AG'].includes(canonical.tier)&&total<=450&&Array.isArray(species.moves)&&species.moves.length>0);
+    species.evos=Array.isArray(canonical?.evos)?[...canonical.evos]:[];
+  }
   catalog.speciesById=new Map(catalog.species.map(p=>[p.id,p]));
   const campaign=new CampaignStore(saveDir);
   const rooms=new Map(),players=new Map(),battles=new Map();
   const app=express();app.disable('x-powered-by');
   app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','no-referrer');res.setHeader('Cache-Control','no-cache');next();});
-  app.get('/api/health',(_req,res)=>res.json({ok:true,name:'Empress: Pokémon 2D',version:'0.4.0'}));
+  app.get('/api/health',(_req,res)=>res.json({ok:true,name:'Pokemon Battle Royale',version:'0.5.0'}));
   app.get('/api/online-config',(req,res)=>{
     if(!localRequest(req))return res.status(403).json({error:'Connection settings belong to the local host.'});
     let configured=null;
@@ -51,7 +57,7 @@ async function startServer({port=0,host='127.0.0.1',rootDir=path.join(__dirname,
     if(Array.isArray(configured)&&configured.length&&configured.length<=12)return res.json({iceServers:configured,relayConfigured:configured.some(entry=>[].concat(entry.urls||[]).some(url=>/^turns?:/i.test(url)))});
     res.json({iceServers:[{urls:['stun:stun.l.google.com:19302','stun:stun.cloudflare.com:3478']}],relayConfigured:false});
   });
-  app.get('/api/catalog',(_req,res)=>res.sendFile(catalogPath));
+  app.get('/api/catalog',(_req,res)=>res.json(catalog));
   app.get('/api/arenas',(_req,res)=>res.json(Object.values(ARENAS)));
   app.get('/api/rules',(_req,res)=>res.json({level:50,ivs:31,evs:0,nature:'neutral',generation:'Modern National Dex',turnSeconds:4,arenaDamageScale:ARENA_DAMAGE_SCALE,freezeSeconds:[.8,1.8],thawImmunitySeconds:4,spawnShieldSeconds:DEPLOYMENT.grace,deployment:DEPLOYMENT,facingBasedAttacks:true,supportedAbilities:[...SUPPORTED_ABILITIES],notes:[`Attack damage uses the canonical formula, types and stats, then applies a ${ARENA_DAMAGE_SCALE} arena multiplier for longer real-time fights.`,'Attacks follow the last direction you moved. Moves commit to a visible windup, release and recovery; movement slows during commitment.','Hits cause brief hitstun and collision-aware knockback. Freeze lasts 0.8–1.8 seconds, followed by four seconds of freeze immunity.','Pokémon deploy from a Poké Ball before they can move or attack. Deployment is protected, followed by 0.35 seconds of protection.','Real-time cooldown, projectile, dodge, flinch, status duration and counter timing are arena adaptations.','Unsupported abilities are displayed but inactive; no held items, weather, terrain, Mega evolution, Z-Moves, Dynamax, or Terastallization.','All combatants use level 50, neutral natures, 31 IVs and 0 EVs. Hidden Power is Dark.','The Midnight Circuit is a connected story journey with checkpoints and a fully healed team at each challenge.']}));
   app.get('/api/campaign',(req,res)=>{if(!localRequest(req))return res.status(403).json({error:'Campaign progress belongs to the local host.'});res.json(campaign.view());});
@@ -175,9 +181,10 @@ async function startServer({port=0,host='127.0.0.1',rootDir=path.join(__dirname,
         else if(message.type==='startBattleRoyale') {
           if(!player.local)throw new Error('Battle Royale starts on the host computer.');
           const selected=validateTeam([message.pokemon],catalog);
+          if(!selected[0].species.battleRoyaleStarter)throw new Error('Choose a first-stage Pokémon that can evolve.');
           leave(player);
           const starterId=selected[0].species.id;
-          const candidates=catalog.species.filter(species=>species.id!==starterId&&Array.isArray(species.moves)&&species.moves.length>0);
+          const candidates=catalog.species.filter(species=>species.id!==starterId&&species.battleRoyaleStarter);
           for(let i=candidates.length-1;i>0;i--){const j=crypto.randomInt(i+1);[candidates[i],candidates[j]]=[candidates[j],candidates[i]];}
           const rivals=[];
           for(const species of candidates){
