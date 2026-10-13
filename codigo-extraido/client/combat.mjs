@@ -386,6 +386,8 @@ export class CombatRenderer {
     if(progress>.72&&Math.floor(now/90)%2===0){
       ctx.globalAlpha=.24+.2*pulse;ctx.fillStyle='#fff';ctx.beginPath();ctx.ellipse(0,-1,24+progress*14,29+progress*14,0,0,TAU);ctx.fill();
     }
+    ctx.globalCompositeOperation='source-over';ctx.textAlign='center';ctx.textBaseline='middle';ctx.font='800 10px Barlow, sans-serif';ctx.globalAlpha=.9;ctx.fillStyle='#fff4c1';ctx.fillText('EVOLVING',0,-58);
+    const destination=this.species(transition.toSpecies)?.name;if(destination){ctx.font='700 9px Barlow, sans-serif';ctx.fillStyle='#fff';ctx.fillText(destination.toUpperCase(),0,57);}
     ctx.restore();
   }
 
