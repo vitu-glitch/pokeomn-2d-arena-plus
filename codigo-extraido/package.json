@@ -1,0 +1,12 @@
+{
+  "name": "empress-pokemon-2d",
+  "version": "0.4.0",
+  "private": true,
+  "description": "Empress: Pokémon 2D — a real-time Pokémon adventure with Story Mode and private friend battles.",
+  "main": "desktop/main.cjs",
+  "dependencies": {
+    "@pkmn/sim": "0.10.11",
+    "express": "5.2.1",
+    "ws": "8.22.0"
+  }
+}
