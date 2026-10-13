@@ -54,7 +54,7 @@ function createPokemon(entry, slot, team, level=50) {
 }
 
 function evolutionMoveScore(move, types) {
-  if (!move) return -Infinity;
+  if (!move || move.id === 'struggle') return -Infinity;
   if (move.category === 'Status') {
     if (move.heal) return 58;
     if (move.self?.boosts || move.boosts) return 45;
@@ -191,6 +191,8 @@ class Battle {
     if(p.hp<=0 || p.deployment || p.evolution || p.action || p.hitstun>0 || p.castLock>0 || p.attackLock>0 || p.dodge>0 || p.flinch>0 || p.status==='slp') return false;
     const state=p.moves[slot],exhausted=state?.pp<=0;
     if(!Number.isInteger(slot) || !state || slot<0 || slot>3 || (exhausted?p.struggleCooldown:state.cooldown)>0) return false;
+    // Struggle is an emergency move only after every real move has run out of PP.
+    if(exhausted && p.moves.some((entry,index)=>index!==slot&&entry.pp>0)) return false;
     const move=getMove(exhausted?'struggle':state.id), spec=moveSpec(move);
     if(p.status==='frz') {
       if(!move.flags?.defrost)return false;
@@ -262,7 +264,8 @@ class Battle {
       this.effect('summon',p.x,p.y,p.types[0],'Transform',1);return true;
     }
     if(spec.kind==='pulse') {
-      this.effect('pulse',p.x,p.y,spec.type,'',.45);
+      const pulseLife=move.id==='earthquake'?.9:move.id==='bulldoze'?.72:move.id==='discharge'?.68:move.id==='surf'?.72:move.id==='sludgewave'?.7:move.id==='leafstorm'?.7:.52;
+      this.effect('pulse',p.x,p.y,spec.type,'',pulseLife,{move:move.id,direction:{...direction}});
       for(const target of this.opponents(teamIndex)) if(distance(p,target)<=spec.range+target.radius && clearLine(p,target,this.arena)) this.hit(p,target,move,direction,context);
     } else if(spec.kind==='melee') {
       const dashByMove={volttackle:112,wildcharge:92,flareblitz:86,aquajet:72,quickattack:86,extremespeed:122,doubleedge:70,takedown:58,bodyslam:54,struggle:48,zenheadbutt:48,headbutt:38,ironhead:32,dragonclaw:30,closecombat:28,playrough:32,leafblade:28,slash:28};
