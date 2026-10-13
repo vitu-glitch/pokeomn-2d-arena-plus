@@ -194,7 +194,7 @@ async function startServer({port=0,host='127.0.0.1',rootDir=path.join(__dirname,
           }
           if(rivals.length<5)throw new Error('Not enough Pokémon data to build a Battle Royale.');
           const teamSpecs=[{name:player.name,team:selected},...rivals];
-          launch([player],teamSpecs,{mode:'battle-royale',arena:ARENAS[message.arena]?message.arena:'island',cpuLevel:4});
+          launch([player],teamSpecs,{mode:'battle-royale',arena:ARENAS[message.arena]?message.arena:'stadium',cpuLevel:4});
         }
         else if(message.type==='input') {
           const entry=battles.get(player.battle);if(!entry||entry.battle.mode==='demo')return;
