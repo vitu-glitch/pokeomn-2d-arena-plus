@@ -93,7 +93,7 @@ class Battle {
   opponents(teamIndex, livingOnly=true) { return this.teams.map((team,index)=>({index,p:this.active(index)})).filter(({index,p})=>index!==teamIndex&&p&&(!livingOnly||p.hp>0)).map(item=>item.p); }
   nearestOpponent(teamIndex, from=this.active(teamIndex)) { if(!from)return null;return this.opponents(teamIndex).sort((a,b)=>distance(from,a)-distance(from,b))[0]||null; }
   event(kind,text,extra={}) { const event={id:this.nextId++,kind,text,at:this.time,...extra}; this.events.push(event); this.events=this.events.slice(-24); return event; }
-  effect(kind,x,y,type,text='',life=.65) { this.effects.push({id:this.nextId++,kind,x,y,type,text,life}); }
+  effect(kind,x,y,type,text='',life=.65,extra={}) { this.effects.push({id:this.nextId++,kind,x,y,type,text,life,...extra}); }
   input(teamIndex,input) {
     if(this.phase!=='battle'||this.paused) return;
     const t=this.teams[teamIndex]; if(!t) return;
@@ -265,8 +265,11 @@ class Battle {
       this.effect('pulse',p.x,p.y,spec.type,'',.45);
       for(const target of this.opponents(teamIndex)) if(distance(p,target)<=spec.range+target.radius && clearLine(p,target,this.arena)) this.hit(p,target,move,direction,context);
     } else if(spec.kind==='melee') {
-      moveCircle(p,direction.x*(move.priority>0?72:34),direction.y*(move.priority>0?72:34),this.arena);
-      this.effect('slash',p.x+direction.x*45,p.y+direction.y*45,spec.type,'',.28);
+      const dashByMove={volttackle:112,wildcharge:92,flareblitz:86,aquajet:72,quickattack:86,extremespeed:122,doubleedge:70,takedown:58,bodyslam:54,struggle:48,zenheadbutt:48,headbutt:38,ironhead:32,dragonclaw:30,closecombat:28,playrough:32,leafblade:28,slash:28};
+      const targetBefore=this.nearestOpponent(teamIndex,p),distanceBefore=targetBefore?distance(p,targetBefore):Infinity,dashMax=dashByMove[move.id];
+      const travel=dashMax?(targetBefore?clamp(distanceBefore-Math.max(42,(targetBefore.radius||24)+20),8,dashMax):dashMax):(move.priority>0?72:34);
+      moveCircle(p,direction.x*travel,direction.y*travel,this.arena);
+      this.effect('slash',p.x+direction.x*45,p.y+direction.y*45,spec.type,'',.28,{move:move.id});
       const targets=this.opponents(teamIndex).filter(target=>distance(p,target)<=spec.range+target.radius && direction.x*unit(target.x-p.x,target.y-p.y).x+direction.y*unit(target.x-p.x,target.y-p.y).y>.35 && clearLine(p,target,this.arena)).sort((a,b)=>distance(p,a)-distance(p,b));
       if(targets.length)this.hit(p,targets[0],move,direction,context);
     } else {
@@ -300,7 +303,11 @@ class Battle {
     if(!alwaysHits && this.random()*100>move.accuracy*mult) {this.effect('miss',defender.x,defender.y,'Normal','Miss',.6);return;}
     if(move.category==='Status') {
       if(move.id==='thunderwave'&&typeMultiplier('Electric',defender.types)===0 || move.flags?.powder&&defender.types.includes('Grass')) {this.effect('immune',defender.x,defender.y,effectiveType(move),'Immune',.8);return;}
-      if(move.status && !this.applyStatus(defender,move.status,attacker)) this.effect('immune',defender.x,defender.y,effectiveType(move),'No effect',.8);
+      if(move.status) {
+        const applied=this.applyStatus(defender,move.status,attacker);
+        if(!applied)this.effect('immune',defender.x,defender.y,effectiveType(move),'No effect',.8);
+        else if(move.id==='willowisp')this.effect('wispHit',defender.x,defender.y-12,'Fire','',.95,{move:move.id});
+      }
       this.changeStages(defender,move.boosts);return;
     }
     const result=calculateDamage(attacker,defender,move,this.random);
@@ -448,7 +455,7 @@ class Battle {
   dealDamage(p,amount,source,move,context={}) {
     if(p.hp<=0||p.evolution)return 0;
     const dealt=Math.min(p.hp,Math.max(0,Math.floor(amount)));p.hp-=dealt;
-    this.effect('damage',p.x,p.y-20,move?effectiveType(move):'Normal',String(dealt),.8);
+    this.effect('damage',p.x,p.y-20,move?effectiveType(move):'Normal',String(dealt),.8,move?{move:move.id}:{});
     if(dealt>0){p.hurtTime=.26;this.event('hurt',`${p.name} took ${dealt} damage.`,{team:p.team,targetSpecies:p.species,sourceSpecies:context.sourceSpecies||source?.species||null,move:move?.id||null,actionId:context.actionId||null,damage:dealt,x:p.x,y:p.y,duration:.26});}
     if(p.hp<=0) {p.vx=0;p.vy=0;p.protect=0;p.dodge=0;p.action=null;p.deployment=null;p.attackLock=0;p.hitstun=0;this.event('faint',`${p.name} fainted!`,{team:p.team,species:p.species,targetSpecies:p.species,sourceSpecies:context.sourceSpecies||source?.species||null,x:p.x,y:p.y,duration:1.15});this.effect('faint',p.x,p.y,p.types[0],'',1.1);this.teams[p.team].respawn=1.15;if(this.mode==='battle-royale'&&source&&Number.isInteger(source.team)&&source.team!==p.team){this.eliminations[source.team]=(this.eliminations[source.team]||0)+1;this.awardExperience(source.team,60);this.heal(source,Math.floor(source.maxHp*.18));this.event('elimination',`${this.teams[source.team].name} eliminated ${p.name}!`,{team:source.team,targetSpecies:p.species,sourceSpecies:source.species,x:p.x,y:p.y});}}
   }
