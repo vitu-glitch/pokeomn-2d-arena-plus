@@ -4,19 +4,19 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#141726">
-  <title>Empress: Pokémon 2D</title>
+  <title>Pokemon Battle Royale</title>
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
   <div id="app">
     <div id="menu-atmosphere" class="menu-atmosphere hidden"><canvas id="menu-arena" width="1200" height="760" aria-hidden="true"></canvas><div id="menu-sprites" class="sprite-layer"></div><div class="menu-shade"></div></div>
     <header class="topbar" id="topbar">
-      <button class="brand empress-brand" id="home-button" aria-label="Main menu"><span class="brand-ball"></span><span>Empress<span class="brand-sub">POKÉMON 2D</span></span></button>
-      <nav class="top-links"><button data-view="home" class="top-link active">PLAY</button><button data-view="team" class="top-link">YOUR TEAM</button><button data-view="story" class="top-link">STORY MODE</button></nav>
+      <button class="brand empress-brand" id="home-button" aria-label="Pokemon Battle Royale home"><span class="brand-ball"></span><span>Pokemon Battle Royale<span class="brand-sub">LAST MON STANDING</span></span></button>
+      <nav class="top-links"><button data-view="home" class="top-link active">BATTLE ROYALE</button></nav>
       <div class="profile"><span id="controller-status" class="controller-status">⌨ KEYBOARD</span><span class="avatar" id="profile-avatar">A</span><button id="profile-button"><span class="profile-label">TRAINER</span><strong id="trainer-name">Ace</strong></button></div>
     </header>
     <main id="main"></main>
-    <footer class="footer" id="footer"><span class="connection"><i id="connection-dot"></i><span id="connection-text">CONNECTING</span></span><span>A JOURNEY WORTH THE FIGHT.</span><button data-view="settings" class="footer-settings">⚙ SETTINGS</button></footer>
+    <footer class="footer" id="footer"><span class="connection"><i id="connection-dot"></i><span id="connection-text">CONNECTING</span></span><span>12 ENTER. ONE WINS.</span><button data-view="settings" class="footer-settings">⚙ SETTINGS</button></footer>
   </div>
   <section id="battle" class="battle hidden" aria-label="Pokémon arena">
     <div class="battle-top"><button id="battle-menu" class="icon-button" aria-label="Battle menu">☰</button><div class="battle-title"><b id="battle-name">STADIUM</b><span id="battle-subtitle">REAL-TIME BATTLE</span></div><div class="battle-clock" id="battle-clock">00:00</div><div class="battle-connection" id="battle-net">LIVE</div></div>
@@ -36,7 +36,7 @@
     <div id="story-dialogue" class="story-dialogue hidden" role="dialog" aria-live="polite"></div>
     <div id="story-transition" class="story-transition hidden"><span>CHAPTER I</span><h2>THE FIRST STEP</h2></div>
   </section>
-  <section id="intro" class="intro-screen" aria-label="Empress title screen"><div class="intro-halo"></div><div class="intro-crown">♛</div><h1>Empress</h1><div class="intro-subtitle">POKÉMON 2D</div><p>A JOURNEY WORTH THE FIGHT.</p><button id="intro-enter"><span class="pad-key a">A</span> PRESS TO BEGIN</button><small>OR CLICK / PRESS ENTER</small></section>
+  <section id="intro" class="intro-screen" aria-label="Pokemon Battle Royale title screen"><div class="intro-halo"></div><div class="intro-crown">♛</div><h1>Pokemon<br>Battle Royale</h1><div class="intro-subtitle">LAST MON STANDING</div><p>12 ENTER. ONE WINS.</p><button id="intro-enter"><span class="pad-key a">A</span> PRESS TO BEGIN</button><small>OR CLICK / PRESS ENTER</small></section>
   <div id="modal-root"></div><div id="toast" class="toast" role="status"></div>
   <script type="module" src="/app.js"></script>
 </body>
