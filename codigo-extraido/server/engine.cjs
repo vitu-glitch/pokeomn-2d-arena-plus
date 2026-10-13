@@ -431,7 +431,7 @@ class Battle {
   }
   step(dt=1/60) {
     if(this.phase!=='battle')return;dt=clamp(dt,0,1/20);this.time+=dt;this.tick++;
-    if(this.zone){const z=this.zone,progress=clamp((this.time-z.startsAt)/(z.closesAt-z.startsAt),0,1);z.radius=z.initialRadius+(z.minRadius-z.initialRadius)*progress;this.zoneDamageClock+=dt;if(this.time>=z.startsAt&&this.zoneDamageClock>=1){this.zoneDamageClock-=1;for(let i=0;i<this.teams.length;i++){const p=this.active(i);if(p&&p.hp>0&&distance(p,z)>z.radius){const damage=Math.max(1,Math.round(z.damage+progress*10));this.dealDamage(p,damage,p,null);this.event('zoneDamage',`${p.name} was hurt by the closing zone!`,{team:i,species:p.species,x:p.x,y:p.y,damage});}}}}
+    if(this.zone){const z=this.zone,progress=clamp((this.time-z.startsAt)/(z.closesAt-z.startsAt),0,1);z.radius=z.initialRadius+(z.minRadius-z.initialRadius)*progress;if(this.time>=z.startsAt){this.zoneDamageClock+=dt;if(this.zoneDamageClock>=1){this.zoneDamageClock-=1;for(let i=0;i<this.teams.length;i++){const p=this.active(i);if(p&&p.hp>0&&distance(p,z)>z.radius){const damage=Math.max(1,Math.round(z.damage+progress*10));this.dealDamage(p,damage,p,null);this.event('zoneDamage',`${p.name} was hurt by the closing zone!`,{team:i,species:p.species,x:p.x,y:p.y,damage});}}}}}
     for(let teamIndex=0;teamIndex<this.teams.length;teamIndex++) {
       const t=this.teams[teamIndex];t.switchCooldown=Math.max(0,t.switchCooldown-dt);t.attackWait=Math.max(0,t.attackWait-dt);
       for(let slot=0;slot<t.roster.length;slot++)this.updatePokemon(t.roster[slot],dt,slot===t.active);
