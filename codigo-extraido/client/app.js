@@ -37,7 +37,7 @@ function renderHome(){
   const featured=mon(canUseSaved?S.brPokemonId:'bulbasaur');
   const sideIds=['bulbasaur','charmander','squirtle'].filter(id=>S.dex.has(id)&&id!==featured.id).slice(0,2);
   while(sideIds.length<2){const next=S.catalog.species.find(p=>p.battleRoyaleStarter&&p.id!==featured.id&&!sideIds.includes(p.id));if(!next)break;sideIds.push(next.id);}
-  const sides=sideIds.map((id,index)=>{const p=mon(id);return '<div class="home-side-pokemon '+(index===0?'home-side-left':'home-side-right')+'">'+imageMon(p.id,'home-side-sprite','loading="eager"')+'<span class="home-side-dex">#'+String(p.num).padStart(3,'0')+'</span><strong>'+esc(p.name)+'</strong><small>'+esc((p.types||[]).join(' / '))+'</small></div>';}).join('');
+  const sides=sideIds.map((id,index)=>{const p=mon(id);return '<div class="home-side-pokemon '+(index===0?'home-side-left':'home-side-right')+'" style="--side-type:'+color(p.types?.[0])+'">'+imageMon(p.id,'home-side-sprite','loading="eager"')+'<span class="home-side-dex">#'+String(p.num).padStart(3,'0')+'</span><strong>'+esc(p.name)+'</strong><small>'+esc((p.types||[]).join(' / '))+'</small></div>';}).join('');
   const controls=S.controller?'<kbd>A</kbd> CONFIRM <span>·</span> <kbd>B</kbd> BACK <span>·</span> <kbd>↕</kbd> NAVIGATE':'<kbd>ENTER</kbd> SELECT <span>·</span> <kbd>ESC</kbd> BACK';
   $('#main').innerHTML=
     '<section class="game-home">'+
