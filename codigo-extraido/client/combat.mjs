@@ -480,7 +480,7 @@ export class CombatRenderer {
       ctx.save();ctx.translate(x,y);
       const polygon=(points,fill,stroke)=>{ctx.beginPath();points.forEach(([px,py],i)=>i?ctx.lineTo(px,py):ctx.moveTo(px,py));ctx.closePath();if(fill){ctx.fillStyle=fill;ctx.fill();}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=1;ctx.stroke();}};
       const rim=[[5,0],[w-7,0],[w,7],[w,h-6],[w-7,h],[6,h],[0,h-7],[0,6]];
-      ctx.fillStyle='#07122477';ctx.fillRect(6,9,w,h-2);
+      if(id==='island'){ctx.fillStyle='#163d3355';ctx.beginPath();ctx.ellipse(w/2,h-2,w*.62,6,0,0,TAU);ctx.fill();}else{ctx.fillStyle='#07122477';ctx.fillRect(6,9,w,h-2);}
       if(id==='island'){
         this.drawIslandTree(o);
       }else if(id==='stadium'){
