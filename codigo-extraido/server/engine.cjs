@@ -58,7 +58,7 @@ class Battle {
     this.id=id; this.arena=ARENAS[arena] || ARENAS.stadium; this.mode=mode; this.stage=stage;
     this.teams=teams.map((team,index)=>({name:team.name,roster:team.team.map((p,slot)=>createPokemon(p,slot,index,mode==='battle-royale'?5:50)),active:0,input:{dx:0,dy:0,aimX:index?0:1200,aimY:380},switchCooldown:0,respawn:0,cpu:Boolean(team.cpu),aiTimer:0,attackWait:1,aiSide:index%2?-1:1}));
     if(mode==='battle-royale')for(const team of this.teams)for(const p of team.roster){p.healthScale=2.2;p.maxHp=Math.round(p.maxHp*p.healthScale);p.hp=p.maxHp;p.stats.hp=p.maxHp;p.originalStats.hp=p.maxHp;}
-    this.projectiles=[]; this.ppOrbs=[]; this.nextPpOrbAt=PP_ORBS.firstSpawn; this.effects=[]; this.events=[]; this.tick=0; this.time=0; this.phase='battle'; this.nextId=1; this.random=random; this.onFinish=onFinish; this.cpuLevel=cpuLevel;this.speciesById=speciesById||new Map();this.eliminations=teams.map(()=>0);this.zone=mode==='battle-royale'?{x:this.arena.width/2,y:this.arena.height/2,initialRadius:560,radius:560,minRadius:105,startsAt:65,closesAt:360,damage:2}:null;this.zoneDamageClock=0;
+    this.projectiles=[]; this.ppOrbs=[]; this.nextPpOrbAt=PP_ORBS.firstSpawn; this.effects=[]; this.events=[]; this.tick=0; this.time=0; this.phase='battle'; this.paused=false; this.nextId=1; this.random=random; this.onFinish=onFinish; this.cpuLevel=cpuLevel;this.speciesById=speciesById||new Map();this.eliminations=teams.map(()=>0);this.zone=mode==='battle-royale'?{x:this.arena.width/2,y:this.arena.height/2,initialRadius:560,radius:560,minRadius:105,startsAt:65,closesAt:360,damage:2}:null;this.zoneDamageClock=0;
     const center={x:this.arena.width/2,y:this.arena.height/2};
     for(let index=0;index<this.teams.length;index++) {
       const team=this.teams[index],p=this.active(index);
@@ -69,13 +69,19 @@ class Battle {
       if(mode==='battle-royale'&&index===0)p.protect=4.5;
     }
   }
+  setPaused(paused) {
+    if(this.mode==='friend'||this.mode==='demo')return false;
+    this.paused=Boolean(paused);
+    if(this.paused)for(const team of this.teams){team.input.dx=0;team.input.dy=0;team.input.cast=null;team.input.m1=false;team.input.dodge=false;team.input.switch=null;}
+    return true;
+  }
   active(team) { const t=this.teams[team]; return t?.roster?.[t.active]||null; }
   opponents(teamIndex, livingOnly=true) { return this.teams.map((team,index)=>({index,p:this.active(index)})).filter(({index,p})=>index!==teamIndex&&p&&(!livingOnly||p.hp>0)).map(item=>item.p); }
   nearestOpponent(teamIndex, from=this.active(teamIndex)) { if(!from)return null;return this.opponents(teamIndex).sort((a,b)=>distance(from,a)-distance(from,b))[0]||null; }
   event(kind,text,extra={}) { const event={id:this.nextId++,kind,text,at:this.time,...extra}; this.events.push(event); this.events=this.events.slice(-24); return event; }
   effect(kind,x,y,type,text='',life=.65) { this.effects.push({id:this.nextId++,kind,x,y,type,text,life}); }
   input(teamIndex,input) {
-    if(this.phase!=='battle') return;
+    if(this.phase!=='battle'||this.paused) return;
     const t=this.teams[teamIndex]; if(!t) return;
     const vector=unit(finite(input.dx),finite(input.dy)); const mag=Math.min(1,Math.hypot(finite(input.dx),finite(input.dy)));
     t.input.dx=vector.x*mag; t.input.dy=vector.y*mag;
@@ -290,6 +296,7 @@ class Battle {
     if(defender.ability==='sturdy'&&defender.hp===defender.maxHp&&amount>=defender.hp) amount=defender.hp-1;
     const dealt=Math.min(defender.hp,amount);
     this.dealDamage(defender,amount,attacker,move,context);
+    if(dealt>0&&this.mode==='battle-royale')this.awardExperience(attacker.team,25,false);
     if(result.effectiveness>1) this.effect('effective',defender.x,defender.y-25,effectiveType(move),'Super effective!',.75);
     else if(result.effectiveness<1)this.effect('resisted',defender.x,defender.y-25,effectiveType(move),'Resisted',.6);
     if(result.critical)this.effect('critical',defender.x,defender.y-44,effectiveType(move),'Critical!',.6);
@@ -332,18 +339,18 @@ class Battle {
     const nextIds=(canonical?.evos||[]).map(idOf).filter(id=>this.speciesById.has(id));
     if(!nextIds.length)return false;
     const nextId=nextIds[Math.floor(this.random()*nextIds.length)],species=this.speciesById.get(nextId),previousSpecies=p.species,previousName=p.name,hpRatio=p.hp/Math.max(1,p.maxHp),nextCanonical=Dex.species.get(nextId);
-    p.species=species.id;p.originalSpecies=species.id;p.nextEvolutionLevel=p.level+3;p.name=species.name;p.sprite=species.sprite;p.spriteAnimated=species.spriteAnimated;p.types=[...species.types];p.originalTypes=[...species.types];p.transformed=false;p.originalMoves=null;
-    const raw=canonicalStats(species.baseStats,p.level),hp=Math.round(raw.hp*(p.healthScale||1)),stats={...raw,hp};p.originalStats={...stats};p.stats={...stats};p.maxHp=hp;p.hp=clamp(Math.round(hpRatio*p.maxHp),1,p.maxHp);
+    p.species=species.id;p.originalSpecies=species.id;p.nextEvolutionLevel=p.level+2;p.name=species.name;p.sprite=species.sprite;p.spriteAnimated=species.spriteAnimated;p.types=[...species.types];p.originalTypes=[...species.types];p.transformed=false;p.originalMoves=null;
+    const raw=canonicalStats(species.baseStats,p.level),hp=Math.round(raw.hp*(p.healthScale||1)),stats={...raw,hp};p.originalStats={...stats};p.stats={...stats};p.maxHp=hp;p.hp=p.maxHp;
     p.abilityName=nextCanonical?.abilities?.['0']||species.abilities?.['0']||'';p.ability=SUPPORTED_ABILITIES.has(idOf(p.abilityName))?idOf(p.abilityName):'';p.abilityImplemented=SUPPORTED_ABILITIES.has(idOf(p.abilityName));
     this.event('evolution',`${previousName} evolved into ${p.name}!`,{team:p.team,sourceSpecies:previousSpecies,targetSpecies:p.species,species:p.species,x:p.x,y:p.y});this.effect('summon',p.x,p.y,p.types[0],p.name,1.2);return true;
   }
-  awardExperience(teamIndex,amount=60) {
+  awardExperience(teamIndex,amount=60,notify=true) {
     if(this.mode!=='battle-royale')return;
     const p=this.active(teamIndex);if(!p||p.hp<=0)return;
     if(p.transformed)this.resetTransform(p);
     p.xp=Math.min(5700,p.xp+amount);const targetLevel=Math.min(100,5+Math.floor(p.xp/60));
     while(p.level<targetLevel){const hpRatio=p.hp/Math.max(1,p.maxHp);p.level++;this.refreshLevelStats(p,hpRatio);this.event('levelUp',`${p.name} reached level ${p.level}!`,{team:teamIndex,level:p.level,xp:p.xp,x:p.x,y:p.y});this.tryEvolution(p);}
-    this.event('xp',`${p.name} gained ${amount} XP!`,{team:teamIndex,xp:p.xp,level:p.level,x:p.x,y:p.y});
+    this.event('xp',`${p.name} gained ${amount} XP!`,{team:teamIndex,xp:p.xp,level:p.level,x:p.x,y:p.y,silent:!notify});
   }
   eliminate(teamIndex, reason='eliminated') { const p=this.active(teamIndex);if(p&&p.hp>0)this.dealDamage(p,p.hp,null,null);if(this.mode==='battle-royale'){const alive=this.teams.map(t=>t.roster.some(mon=>mon.hp>0));const count=alive.filter(Boolean).length;if(count<=1)this.finish(count===1?alive.findIndex(Boolean):null,reason);} }
   dealDamage(p,amount,source,move,context={}) {
@@ -457,7 +464,7 @@ class Battle {
     if(attackSlot!==null)t.attackWait=this.cpuLevel<=4?1.45-this.cpuLevel*.06:Math.max(.95,1.15-(this.cpuLevel-4)*.02);
   }
   step(dt=1/60) {
-    if(this.phase!=='battle')return;dt=clamp(dt,0,1/20);this.time+=dt;this.tick++;
+    if(this.phase!=='battle'||this.paused)return;dt=clamp(dt,0,1/20);this.time+=dt;this.tick++;
     if(this.zone){const z=this.zone,progress=clamp((this.time-z.startsAt)/(z.closesAt-z.startsAt),0,1);z.radius=z.initialRadius+(z.minRadius-z.initialRadius)*progress;if(this.time>=z.startsAt){this.zoneDamageClock+=dt;if(this.zoneDamageClock>=1){this.zoneDamageClock-=1;for(let i=0;i<this.teams.length;i++){const p=this.active(i);if(p&&p.hp>0&&distance(p,z)>z.radius){const damage=Math.max(1,Math.round(z.damage+progress*10));this.dealDamage(p,damage,p,null);this.event('zoneDamage',`${p.name} was hurt by the closing zone!`,{team:i,species:p.species,x:p.x,y:p.y,damage});}}}}}
     for(let teamIndex=0;teamIndex<this.teams.length;teamIndex++) {
       const t=this.teams[teamIndex];t.switchCooldown=Math.max(0,t.switchCooldown-dt);t.attackWait=Math.max(0,t.attackWait-dt);
@@ -515,7 +522,7 @@ class Battle {
     return {type:'battleStart',id:this.id,mode:this.mode,stage:this.stage,arena:this.arena,selfTeam,rules:{level:this.mode==='battle-royale'?5:50,ivs:31,evs:0,nature:'neutral',turnSeconds:4,limitSeconds:this.mode==='battle-royale'?420:300,arenaDamageScale:ARENA_DAMAGE_SCALE,freezeSeconds:[.8,1.8],facingBasedAttacks:true,deployment:DEPLOYMENT,spawnShield:DEPLOYMENT.grace,ppOrbs:PP_ORBS},teams:this.teams.map(t=>({name:t.name,pokemon:t.roster.map(p=>({species:p.species,name:p.name,types:p.types,level:p.level,xp:p.xp,hp:p.hp,maxHp:p.maxHp,sprite:p.sprite,spriteAnimated:p.spriteAnimated,ability:p.abilityName,abilityImplemented:p.abilityImplemented,moves:p.moves.map(m=>({...m,name:getMove(m.id).name,type:effectiveType(getMove(m.id)),category:getMove(m.id).category,cooldown:moveSpec(getMove(m.id)).cooldown,windup:moveSpec(getMove(m.id)).windup,recovery:moveSpec(getMove(m.id)).recovery,attackKind:moveSpec(getMove(m.id)).kind}))}))}))};
   }
   snapshot() {
-    return {type:'state',id:this.id,tick:this.tick,time:this.time,phase:this.phase,arenaId:this.arena.id,zone:this.zone?{...this.zone,timeToStart:Math.max(0,this.zone.startsAt-this.time),closing:this.time>=this.zone.startsAt}:null,
+    return {type:'state',id:this.id,tick:this.tick,time:this.time,phase:this.phase,paused:this.paused,arenaId:this.arena.id,zone:this.zone?{...this.zone,timeToStart:Math.max(0,this.zone.startsAt-this.time),closing:this.time>=this.zone.startsAt}:null,
       remaining:this.teams.filter(t=>t.roster.some(p=>p.hp>0)).length,eliminations:[...this.eliminations],fighters:this.teams.map((t,i)=>{const p=this.active(i);return {id:p.id,team:p.team,slot:p.slot,species:p.species,name:p.name,level:p.level,xp:p.xp,x:p.x,y:p.y,vx:p.vx,vy:p.vy,radius:p.radius,facing:p.facing,hp:p.hp,maxHp:p.maxHp,types:p.types,status:p.status,statusTime:p.statusTime,protect:p.protect,dodge:p.dodge,dodgeCooldown:p.dodgeCooldown,stages:p.stages,cooldowns:p.moves.map(m=>m.pp<=0?p.struggleCooldown:m.cooldown),pp:p.moves.map(m=>m.pp),maxPp:p.moves.map(m=>m.maxPp),moves:p.moves.map(m=>m.id),switchCooldown:t.switchCooldown,ability:p.abilityName,abilityImplemented:p.abilityImplemented,confusion:p.confusion,counter:p.counter,m1Cooldown:p.m1Cooldown||0,action:p.action?{...p.action,direction:{...p.action.direction}}:null,deployment:p.deployment?{...p.deployment}:null,hitstun:p.hitstun,hurtTime:p.hurtTime,freezeImmunity:p.freezeImmunity};}),
       benches:this.teams.map(t=>t.roster.map(p=>({species:p.species,name:p.name,hp:p.hp,maxHp:p.maxHp,status:p.status}))),
       projectiles:this.projectiles.map(({owner,...s})=>s),ppOrbs:this.ppOrbs.map(orb=>({...orb})),effects:this.effects,events:this.events};
