@@ -7,7 +7,7 @@ const crypto=require('node:crypto');
 const express=require('express');
 const {WebSocketServer,WebSocket}=require('ws');
 const {Battle,ARENAS,SUPPORTED_ABILITIES,DEPLOYMENT}=require('./engine.cjs');
-const {validateTeam,idOf,ARENA_DAMAGE_SCALE}=require('./rules.cjs');
+const {validateTeam,idOf,ARENA_DAMAGE_SCALE,Dex}=require('./rules.cjs');
 const {CampaignStore,STAGES}=require('./campaign.cjs');
 
 const send=(socket,data)=>{if(socket.readyState===WebSocket.OPEN && socket.bufferedAmount<512*1024)socket.send(JSON.stringify(data));};
@@ -33,17 +33,199 @@ function permittedSocketOrigin(req) {
 }
 function safeEqual(a,b) {if(typeof a!=='string'||typeof b!=='string')return false;const first=Buffer.from(a),second=Buffer.from(b);return first.length===second.length&&crypto.timingSafeEqual(first,second);}
 function cleanName(name) {return String(name||'Trainer').replace(/[\u0000-\u001f<>]/g,'').trim().slice(0,24)||'Trainer';}
+function loadEnvFile(file) {
+  if(!fs.existsSync(file))return;
+  for(const line of fs.readFileSync(file,'utf8').split(/\r?\n/)){
+    const match=line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
+    if(!match||Object.prototype.hasOwnProperty.call(process.env,match[1]))continue;
+    let value=match[2];
+    if((value.startsWith('"')&&value.endsWith('"'))||(value.startsWith("'")&&value.endsWith("'")))value=value.slice(1,-1);
+    else value=value.replace(/\s+#.*$/,'');
+    process.env[match[1]]=value;
+  }
+}
 
 async function startServer({port=0,host='127.0.0.1',rootDir=path.join(__dirname,'..'),saveDir=path.join(rootDir,'save')}={}) {
   rootDir=path.resolve(rootDir);saveDir=path.resolve(saveDir);
+  loadEnvFile(path.join(rootDir,'.env'));
   const catalogPath=path.join(rootDir,'client','data','catalog.json');
   const catalog=JSON.parse(fs.readFileSync(catalogPath,'utf8'));
+  for(const species of catalog.species){
+    const canonical=Dex.species.get(species.id);
+    const total=Object.values(canonical?.baseStats||species.baseStats||{}).reduce((sum,value)=>sum+Number(value||0),0);
+    species.battleRoyaleStarter=Boolean(canonical&&!canonical.prevo&&Array.isArray(canonical.evos)&&canonical.evos.length>0&&!canonical.forme&&!canonical.isNonstandard&&!['Uber','AG'].includes(canonical.tier)&&total<=450&&Array.isArray(species.moves)&&species.moves.length>0);
+    species.evos=Array.isArray(canonical?.evos)?[...canonical.evos]:[];
+  }
   catalog.speciesById=new Map(catalog.species.map(p=>[p.id,p]));
   const campaign=new CampaignStore(saveDir);
   const rooms=new Map(),players=new Map(),battles=new Map();
   const app=express();app.disable('x-powered-by');
   app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','no-referrer');res.setHeader('Cache-Control','no-cache');next();});
-  app.get('/api/health',(_req,res)=>res.json({ok:true,name:'Empress: Pokémon 2D',version:'0.4.0'}));
+  app.use(express.json({limit:'512kb'}));
+  fs.mkdirSync(saveDir,{recursive:true});
+  const accountsPath=path.join(saveDir,'accounts.json');
+  const accounts=new Map(),sessions=new Map(),oauthStates=new Map(),authRate=new Map(),loginFailures=new Map();
+  try {
+    const stored=JSON.parse(fs.readFileSync(accountsPath,'utf8'));
+    if(Array.isArray(stored))for(const account of stored)if(account&&typeof account.id==='string'&&typeof account.email==='string')accounts.set(account.id,account);
+  } catch(error) { if(error.code!=='ENOENT')console.error('Account data could not be loaded:',error.message); }
+  function persistAccounts(){
+    const temporary=accountsPath+'.tmp';
+    fs.writeFileSync(temporary,JSON.stringify([...accounts.values()],null,2),{mode:0o600});
+    fs.renameSync(temporary,accountsPath);
+  }
+  const publicAccount=account=>account?({id:account.id,email:account.email,displayName:account.displayName,avatar:account.avatar||'',provider:account.provider||'email',createdAt:account.createdAt}):null;
+  const cleanEmail=value=>String(value||'').trim().toLowerCase();
+  const validEmail=value=>value.length<=254&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  function cookieToken(req,name){
+    const prefix=name+'=';
+    for(const part of String(req.headers.cookie||'').split(';')){const item=part.trim();if(item.startsWith(prefix))return item.slice(prefix.length);}
+    return '';
+  }
+  function secureCookie(req){return process.env.NODE_ENV==='production'||req.secure===true;}
+  function setCookie(res,req,name,value,options={}){
+    const bits=[name+'='+value,'Path='+ (options.path||'/'),'SameSite=Lax'];
+    if(options.httpOnly!==false)bits.push('HttpOnly');
+    if(options.maxAge!==undefined)bits.push('Max-Age='+options.maxAge);
+    if(secureCookie(req))bits.push('Secure');
+    const current=res.getHeader('Set-Cookie');
+    const next=bits.join('; ');
+    res.setHeader('Set-Cookie',current?(Array.isArray(current)?[...current,next]:[current,next]):next);
+  }
+  function clearCookie(res,req,name,pathValue='/'){
+    const bits=[name+'=','Path='+pathValue,'SameSite=Lax','Max-Age=0','HttpOnly'];
+    if(secureCookie(req))bits.push('Secure');
+    const current=res.getHeader('Set-Cookie'),next=bits.join('; ');
+    res.setHeader('Set-Cookie',current?(Array.isArray(current)?[...current,next]:[current,next]):next);
+  }
+  function currentAccount(req){
+    const token=cookieToken(req,'pbr_session'),session=sessions.get(token);
+    if(!token||!session)return null;
+    if(session.expiresAt<=Date.now()){sessions.delete(token);return null;}
+    return accounts.get(session.userId)||null;
+  }
+  function createSession(req,res,account){
+    const token=crypto.randomBytes(32).toString('base64url');
+    sessions.set(token,{userId:account.id,expiresAt:Date.now()+30*24*60*60*1000});
+    setCookie(res,req,'pbr_session',token,{maxAge:30*24*60*60});
+  }
+  function requireSameOrigin(req,res,next){
+    if(!sameOrigin(req))return res.status(403).json({error:'This request did not come from this site.'});
+    next();
+  }
+  function authRateLimit(req,res,next){
+    const key=(req.ip||req.socket.remoteAddress||'unknown')+':'+req.path,now=Date.now();
+    let item=authRate.get(key);
+    if(!item||item.until<=now)item={count:0,until:now+60_000};
+    item.count++;authRate.set(key,item);
+    if(item.count>20)return res.status(429).json({error:'Too many attempts. Please wait a minute and try again.'});
+    next();
+  }
+  function hashPassword(password,salt){
+    return new Promise((resolve,reject)=>crypto.scrypt(password,salt,64,{N:16384,r:8,p:1,maxmem:64*1024*1024},(error,derived)=>error?reject(error):resolve(derived.toString('hex'))));
+  }
+  function verifyPassword(value,stored,salt){
+    return /^[a-f0-9]{128}$/i.test(stored||'')&&safeEqual(value,stored);
+  }
+  function googleConfigured(){const id=String(process.env.GOOGLE_CLIENT_ID||'').trim(),secret=String(process.env.GOOGLE_CLIENT_SECRET||'').trim();return Boolean(id&&secret&&!/^(your-|paste-|replace|change-me)/i.test(id)&&!/^(your-|paste-|replace|change-me)/i.test(secret));}
+  function googleRedirectUri(req){
+    return process.env.GOOGLE_REDIRECT_URI||((req.secure?'https':'http')+'://'+req.get('host')+'/api/auth/google/callback');
+  }
+  function googleError(res,code){return res.redirect('/?authError='+encodeURIComponent(code));}
+  app.get('/api/auth/config',(_req,res)=>res.json({googleConfigured:googleConfigured()}));
+  app.get('/api/auth/me',(req,res)=>res.setHeader('Cache-Control','no-store').json({user:publicAccount(currentAccount(req)),googleConfigured:googleConfigured()}));
+  app.post('/api/auth/register',requireSameOrigin,authRateLimit,async(req,res)=>{
+    try{
+      const body=req.body&&typeof req.body==='object'?req.body:{},email=cleanEmail(body.email),displayName=String(body.displayName||'').trim(),password=typeof body.password==='string'?body.password:'';
+      if(!validEmail(email))return res.status(400).json({error:'Enter a valid email address.'});
+      if(displayName.length<1||displayName.length>24||cleanName(displayName)==='Trainer'&&displayName.toLowerCase()!=='trainer')return res.status(400).json({error:'Choose a name between 1 and 24 characters.'});
+      if(password.length<8||password.length>128)return res.status(400).json({error:'Your password must contain between 8 and 128 characters.'});
+      if([...accounts.values()].some(account=>account.email===email))return res.status(409).json({error:'An account already uses this email. Try signing in.'});
+      const salt=crypto.randomBytes(16).toString('hex'),passwordHash=await hashPassword(password,salt),now=new Date().toISOString();
+      const account={id:crypto.randomUUID(),email,displayName:cleanName(displayName),avatar:'',provider:'email',salt,passwordHash,createdAt:now,updatedAt:now};
+      accounts.set(account.id,account);persistAccounts();createSession(req,res,account);
+      return res.status(201).json({user:publicAccount(account)});
+    }catch(error){console.error('Account registration failed:',error.message);return res.status(500).json({error:'The account could not be created. Please try again.'});}
+  });
+  app.post('/api/auth/login',requireSameOrigin,authRateLimit,async(req,res)=>{
+    try{
+      const body=req.body&&typeof req.body==='object'?req.body:{},email=cleanEmail(body.email),password=typeof body.password==='string'?body.password:'',now=Date.now();
+      let failure=loginFailures.get(email);
+      if(failure&&failure.until<=now){loginFailures.delete(email);failure=null;}
+      if(failure&&failure.count>=8)return res.status(429).json({error:'Too many failed sign-in attempts. Wait 10 minutes before trying again.'});
+      const account=[...accounts.values()].find(candidate=>candidate.email===email&&candidate.salt&&candidate.passwordHash);
+      let accepted=false;
+      if(account&&password.length<=128){
+        const candidate=await hashPassword(password,account.salt);
+        accepted=verifyPassword(candidate,account.passwordHash,account.salt);
+      }
+      if(!accepted){
+        if(!failure)failure={count:0,until:now+10*60_000};
+        failure.count++;loginFailures.set(email,failure);
+        return res.status(401).json({error:'Email or password is incorrect.'});
+      }
+      loginFailures.delete(email);createSession(req,res,account);
+      return res.json({user:publicAccount(account)});
+    }catch(error){console.error('Account sign-in failed:',error.message);return res.status(500).json({error:'Sign-in failed. Please try again.'});}
+  });
+  app.post('/api/auth/logout',requireSameOrigin,(req,res)=>{
+    const token=cookieToken(req,'pbr_session');if(token)sessions.delete(token);
+    clearCookie(res,req,'pbr_session');res.json({ok:true});
+  });
+  app.post('/api/auth/profile',requireSameOrigin,authRateLimit,(req,res)=>{
+    const account=currentAccount(req);if(!account)return res.status(401).json({error:'Please sign in again.'});
+    const body=req.body&&typeof req.body==='object'?req.body:{},displayName=String(body.displayName||'').trim();
+    if(displayName.length<1||displayName.length>24)return res.status(400).json({error:'Your trainer name must contain 1–24 characters.'});
+    if(typeof body.avatar!=='string')return res.status(400).json({error:'Choose a valid profile image.'});
+    const avatar=body.avatar;
+    if(avatar && avatar.length>370_000)return res.status(413).json({error:'The profile image is too large. Please choose a smaller image.'});
+    if(avatar&&!/^https:\/\/([a-zA-Z0-9-]+\.)*googleusercontent\.com\/[^\s]*$/.test(avatar)&&!/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(avatar))return res.status(400).json({error:'Use a PNG, JPG, or WebP image.'});
+    if(avatar.startsWith('data:image/')){
+      const payload=avatar.slice(avatar.indexOf(',')+1),buffer=Buffer.from(payload,'base64');
+      if(buffer.length>256*1024)return res.status(413).json({error:'The profile image must be smaller than 256 KB.'});
+      if(!/^data:image\/(?:png|jpeg|webp);base64,/.test(avatar))return res.status(400).json({error:'Only PNG, JPG, and WebP images are supported.'});
+    }
+    account.displayName=cleanName(displayName);account.avatar=avatar;account.updatedAt=new Date().toISOString();
+    persistAccounts();res.json({user:publicAccount(account)});
+  });
+  app.get('/api/auth/google',(req,res)=>{
+    if(!googleConfigured())return googleError(res,'google_not_configured');
+    const state=crypto.randomBytes(32).toString('base64url');
+    for(const [key,expiresAt] of oauthStates)if(expiresAt<=Date.now())oauthStates.delete(key);
+    oauthStates.set(state,Date.now()+10*60_000);
+    setCookie(res,req,'pbr_google_state',state,{path:'/api/auth/google/callback',maxAge:600});
+    const query=new URLSearchParams({client_id:process.env.GOOGLE_CLIENT_ID,redirect_uri:googleRedirectUri(req),response_type:'code',scope:'openid email profile',state,prompt:'select_account'});
+    return res.redirect('https://accounts.google.com/o/oauth2/v2/auth?'+query.toString());
+  });
+  app.get('/api/auth/google/callback',async(req,res)=>{
+    const state=String(req.query.state||''),cookieState=cookieToken(req,'pbr_google_state'),expiresAt=oauthStates.get(state);
+    oauthStates.delete(state);clearCookie(res,req,'pbr_google_state','/api/auth/google/callback');
+    if(!googleConfigured())return googleError(res,'google_not_configured');
+    if(!state||!cookieState||!safeEqual(state,cookieState)||!expiresAt||expiresAt<=Date.now())return googleError(res,'google_state');
+    if(req.query.error)return googleError(res,'google_cancelled');
+    if(typeof req.query.code!=='string')return googleError(res,'google_failed');
+    try{
+      const redirectUri=googleRedirectUri(req);
+      const tokenResponse=await fetch('https://oauth2.googleapis.com/token',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({code:req.query.code,client_id:process.env.GOOGLE_CLIENT_ID,client_secret:process.env.GOOGLE_CLIENT_SECRET,redirect_uri:redirectUri,grant_type:'authorization_code'})});
+      const tokenData=await tokenResponse.json();
+      if(!tokenResponse.ok||typeof tokenData.id_token!=='string')return googleError(res,'google_failed');
+      const verifyResponse=await fetch('https://oauth2.googleapis.com/tokeninfo?id_token='+encodeURIComponent(tokenData.id_token));
+      const identity=await verifyResponse.json();
+      const validIssuer=['accounts.google.com','https://accounts.google.com'].includes(identity.iss);
+      if(!verifyResponse.ok||identity.aud!==process.env.GOOGLE_CLIENT_ID||!validIssuer||Number(identity.exp)*1000<=Date.now()||identity.email_verified!=='true'||!identity.sub||!validEmail(cleanEmail(identity.email)))return googleError(res,'google_failed');
+      const email=cleanEmail(identity.email),name=cleanName(identity.name||email.split('@')[0]),picture=typeof identity.picture==='string'&&identity.picture.startsWith('https://')?identity.picture:'';
+      let account=[...accounts.values()].find(candidate=>candidate.googleSub===identity.sub)||[...accounts.values()].find(candidate=>candidate.email===email);
+      if(account){
+        account.googleSub=identity.sub;if(!account.displayName)account.displayName=name;if(!account.avatar)account.avatar=picture;
+        account.provider=account.salt&&account.passwordHash?'google+email':'google';account.updatedAt=new Date().toISOString();
+      }else{
+        account={id:crypto.randomUUID(),email,displayName:name,avatar:picture,provider:'google',googleSub:identity.sub,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
+        accounts.set(account.id,account);
+      }
+      persistAccounts();createSession(req,res,account);return res.redirect('/?auth=success');
+    }catch(error){console.error('Google sign-in failed:',error.message);return googleError(res,'google_failed');}
+  });
+  app.get('/api/health',(_req,res)=>res.json({ok:true,name:'Pokemon Battle Royale',version:'0.5.0'}));
   app.get('/api/online-config',(req,res)=>{
     if(!localRequest(req))return res.status(403).json({error:'Connection settings belong to the local host.'});
     let configured=null;
@@ -51,7 +233,7 @@ async function startServer({port=0,host='127.0.0.1',rootDir=path.join(__dirname,
     if(Array.isArray(configured)&&configured.length&&configured.length<=12)return res.json({iceServers:configured,relayConfigured:configured.some(entry=>[].concat(entry.urls||[]).some(url=>/^turns?:/i.test(url)))});
     res.json({iceServers:[{urls:['stun:stun.l.google.com:19302','stun:stun.cloudflare.com:3478']}],relayConfigured:false});
   });
-  app.get('/api/catalog',(_req,res)=>res.sendFile(catalogPath));
+  app.get('/api/catalog',(_req,res)=>res.json(catalog));
   app.get('/api/arenas',(_req,res)=>res.json(Object.values(ARENAS)));
   app.get('/api/rules',(_req,res)=>res.json({level:50,ivs:31,evs:0,nature:'neutral',generation:'Modern National Dex',turnSeconds:4,arenaDamageScale:ARENA_DAMAGE_SCALE,freezeSeconds:[.8,1.8],thawImmunitySeconds:4,spawnShieldSeconds:DEPLOYMENT.grace,deployment:DEPLOYMENT,facingBasedAttacks:true,supportedAbilities:[...SUPPORTED_ABILITIES],notes:[`Attack damage uses the canonical formula, types and stats, then applies a ${ARENA_DAMAGE_SCALE} arena multiplier for longer real-time fights.`,'Attacks follow the last direction you moved. Moves commit to a visible windup, release and recovery; movement slows during commitment.','Hits cause brief hitstun and collision-aware knockback. Freeze lasts 0.8–1.8 seconds, followed by four seconds of freeze immunity.','Pokémon deploy from a Poké Ball before they can move or attack. Deployment is protected, followed by 0.35 seconds of protection.','Real-time cooldown, projectile, dodge, flinch, status duration and counter timing are arena adaptations.','Unsupported abilities are displayed but inactive; no held items, weather, terrain, Mega evolution, Z-Moves, Dynamax, or Terastallization.','All combatants use level 50, neutral natures, 31 IVs and 0 EVs. Hidden Power is Dark.','The Midnight Circuit is a connected story journey with checkpoints and a fully healed team at each challenge.']}));
   app.get('/api/campaign',(req,res)=>{if(!localRequest(req))return res.status(403).json({error:'Campaign progress belongs to the local host.'});res.json(campaign.view());});
@@ -90,7 +272,10 @@ async function startServer({port=0,host='127.0.0.1',rootDir=path.join(__dirname,
   function leave(player,reason='left') {
     if(player.battle) {
       const entry=battles.get(player.battle);
-      if(entry && entry.battle.phase==='battle')entry.battle.finish(1-player.team,reason);
+      if(entry && entry.battle.phase==='battle'){
+        if(entry.battle.mode==='battle-royale')entry.battle.eliminate(player.team,reason);
+        else entry.battle.finish(1-player.team,reason);
+      }
       if(entry){entry.players=entry.players.filter(id=>id!==player.id);if(entry.players.length===0)battles.delete(entry.battle.id);}
       player.battle=null;
     }
@@ -99,7 +284,7 @@ async function startServer({port=0,host='127.0.0.1',rootDir=path.join(__dirname,
   function launch(memberPlayers,teamSpecs,{mode,stage=null,arena='stadium',cpuLevel=1}) {
     const id=crypto.randomBytes(10).toString('hex');
     const entry={battle:null,players:memberPlayers.map(p=>p.id),finishedAt:0};
-    const battle=new Battle({id,teams:teamSpecs,mode,stage,arena,cpuLevel,onFinish:({winner,reason})=>{
+    const battle=new Battle({id,teams:teamSpecs,mode,stage,arena,cpuLevel,speciesById:catalog.speciesById,onFinish:({winner,reason})=>{
       entry.finishedAt=Date.now();
       let progress=null,saveError=null;
       if(mode==='campaign') {
@@ -118,6 +303,7 @@ async function startServer({port=0,host='127.0.0.1',rootDir=path.join(__dirname,
     return validateTeam(ids.map(id=>({species:id})),catalog);
   }
   const quickRoster=['charizard','blastoise','venusaur','pikachu','gengar','lucario','gardevoir','dragonite','scizor','sylveon','arcanine','sceptile','swampert','greninja','mimikyu','garchomp'];
+  const royaleNames=['Misty','Brock','Rival','Nova','Iris','Ash','Cynthia','Raihan','Dawn','Blaze','Storm','Ace'];
   wss.on('connection',(ws,req)=>{
     const id=crypto.randomBytes(12).toString('hex');
     const player={id,ws,name:'Trainer',room:null,battle:null,team:0,local:hostConnection(req),lastSeq:-1,rateAt:Date.now(),rateCount:0,alive:true,admissionTimer:null};
@@ -167,6 +353,29 @@ async function startServer({port=0,host='127.0.0.1',rootDir=path.join(__dirname,
           leave(player);
           const ids=stage?.team||[...quickRoster].sort(()=>crypto.randomInt(1000)/1000-.5).slice(0,selected.length);
           launch([player],[{name:player.name,team:selected},{name:stage?.name||'CPU Trainer',team:cpuTeam(ids),cpu:true}],{mode:stage?'campaign':'cpu',stage:stage?.id||null,arena:stage?.arena||(ARENAS[message.arena]?message.arena:'stadium'),cpuLevel:stage?STAGES.indexOf(stage)+1:4});
+        }
+        else if(message.type==='startBattleRoyale') {
+          if(!player.local)throw new Error('Battle Royale starts on the host computer.');
+          const selected=validateTeam([message.pokemon],catalog);
+          if(!selected[0].species.battleRoyaleStarter)throw new Error('Choose a first-stage Pokémon that can evolve.');
+          leave(player);
+          const starterId=selected[0].species.id;
+          const candidates=catalog.species.filter(species=>species.id!==starterId&&species.battleRoyaleStarter);
+          for(let i=candidates.length-1;i>0;i--){const j=crypto.randomInt(i+1);[candidates[i],candidates[j]]=[candidates[j],candidates[i]];}
+          const rivals=[];
+          for(const species of candidates){
+            try{const team=cpuTeam([species.id]);rivals.push({name:royaleNames[rivals.length%royaleNames.length]+' '+String(rivals.length+1).padStart(2,'0'),team,cpu:true});}
+            catch{ /* Skip catalog entries without a legal supported moveset. */ }
+            if(rivals.length===11)break;
+          }
+          if(rivals.length<5)throw new Error('Not enough Pokémon data to build a Battle Royale.');
+          const teamSpecs=[{name:player.name,team:selected},...rivals];
+          launch([player],teamSpecs,{mode:'battle-royale',arena:ARENAS[message.arena]?message.arena:'stadium',cpuLevel:4});
+        }
+        else if(message.type==='pause') {
+          const entry=battles.get(player.battle);
+          if(!entry||!player.local||player.team!==0)return;
+          entry.battle.setPaused(message.paused);
         }
         else if(message.type==='input') {
           const entry=battles.get(player.battle);if(!entry||entry.battle.mode==='demo')return;

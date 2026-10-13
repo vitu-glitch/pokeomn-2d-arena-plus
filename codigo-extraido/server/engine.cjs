@@ -35,55 +35,91 @@ function clearLine(a,b,arena,radius=3) {
   return true;
 }
 
-function createPokemon(entry, slot, team) {
-  const species=entry.species, stats=canonicalStats(species.baseStats);
+function createPokemon(entry, slot, team, level=50) {
+  const species=entry.species, stats=canonicalStats(species.baseStats,level);
   const canonical=Dex.species.get(species.id);
   const abilityName=canonical.abilities?.['0'] || '';
   return {
-    id:`p${team}`, team, slot, species:species.id, originalSpecies:species.id, name:species.name,
+    id:`p${team}`, team, slot, level, xp:0, nextEvolutionLevel:8, species:species.id, originalSpecies:species.id, name:species.name,
     sprite:species.sprite, spriteAnimated:species.spriteAnimated, types:[...species.types], originalTypes:[...species.types],
-    stats, originalStats:{...stats}, hp:stats.hp, maxHp:stats.hp, stages:blankStages(),
+    stats, originalStats:{...stats}, hp:stats.hp, maxHp:stats.hp, m1Cooldown:0, stages:blankStages(),
     ability:SUPPORTED_ABILITIES.has(idOf(abilityName)) ? idOf(abilityName) : '', abilityName, abilityImplemented:SUPPORTED_ABILITIES.has(idOf(abilityName)),
     moves:entry.moves.map(id => ({id,pp:getMove(id).pp,maxPp:getMove(id).pp,cooldown:0})),struggleCooldown:0,
     originalMoves:null, transformed:false, x:team?970:230,y:380,vx:0,vy:0,radius:24,facing:{x:team?-1:1,y:0},
     status:null,statusTime:0,statusTick:0,toxicCounter:0,confusion:0,flinch:0,
     protect:.8,dodge:0,dodgeCooldown:0,dodgeDirection:{x:1,y:0},attackLock:0,castLock:0,
-    action:null,deployment:null,hitstun:0,hurtTime:0,freezeImmunity:0,
+    action:null,deployment:null,evolution:null,hitstun:0,hurtTime:0,freezeImmunity:0,
     knockX:0,knockY:0,counter:0,counterCategory:null,flashFire:false,
   };
 }
 
-class Battle {
-  constructor({id,teams,arena='stadium',mode='cpu',stage=null,cpuLevel=1,random=Math.random,onFinish=()=>{}}) {
-    this.id=id; this.arena=ARENAS[arena] || ARENAS.stadium; this.mode=mode; this.stage=stage;
-    this.teams=teams.map((team,index)=>({name:team.name,roster:team.team.map((p,slot)=>createPokemon(p,slot,index)),active:0,input:{dx:0,dy:0,aimX:index?0:1200,aimY:380},switchCooldown:0,respawn:0,cpu:Boolean(team.cpu),aiTimer:0,attackWait:1,aiSide:index?-1:1}));
-    this.projectiles=[]; this.ppOrbs=[]; this.nextPpOrbAt=PP_ORBS.firstSpawn; this.effects=[]; this.events=[]; this.tick=0; this.time=0; this.phase='battle'; this.nextId=1; this.random=random; this.onFinish=onFinish; this.cpuLevel=cpuLevel;
-    for(let index=0;index<2;index++)this.beginDeployment(this.active(index),true);
+function evolutionMoveScore(move, types) {
+  if (!move || move.id === 'struggle') return -Infinity;
+  if (move.category === 'Status') {
+    if (move.heal) return 58;
+    if (move.self?.boosts || move.boosts) return 45;
+    return 12;
   }
-  active(team) { const t=this.teams[team]; return t.roster[t.active]; }
+  const power = Number(move.basePower) || 0;
+  const accuracy = typeof move.accuracy === 'number' ? clamp(move.accuracy, 30, 100) / 100 : 1;
+  const balancedPower = Math.min(100, power) - Math.max(0, power - 100) * 1.5;
+  const stab = (types || []).includes(effectiveType(move)) ? 15 : 0;
+  return balancedPower * accuracy + stab + (move.secondaries?.length ? 4 : 0) + (move.drain ? 5 : 0) - (move.recoil ? 8 : 0);
+}
+
+class Battle {
+  constructor({id,teams,arena='stadium',mode='cpu',stage=null,cpuLevel=1,random=Math.random,speciesById=null,onFinish=()=>{}}) {
+    this.id=id; this.arena=ARENAS[arena] || ARENAS.stadium; this.mode=mode; this.stage=stage;
+    this.teams=teams.map((team,index)=>({name:team.name,roster:team.team.map((p,slot)=>createPokemon(p,slot,index,mode==='battle-royale'?5:50)),active:0,input:{dx:0,dy:0,aimX:index?0:1200,aimY:380},switchCooldown:0,respawn:0,cpu:Boolean(team.cpu),aiTimer:0,attackWait:1,aiSide:index%2?-1:1}));
+    if(mode==='battle-royale')for(const team of this.teams)for(const p of team.roster){p.healthScale=2.2;p.maxHp=Math.round(p.maxHp*p.healthScale);p.hp=p.maxHp;p.stats.hp=p.maxHp;p.originalStats.hp=p.maxHp;}
+    this.projectiles=[]; this.ppOrbs=[]; this.nextPpOrbAt=PP_ORBS.firstSpawn; this.effects=[]; this.events=[]; this.tick=0; this.time=0; this.phase='battle'; this.paused=false; this.nextId=1; this.random=random; this.onFinish=onFinish; this.cpuLevel=cpuLevel;this.speciesById=speciesById||new Map();this.eliminations=teams.map(()=>0);this.zone=mode==='battle-royale'?{x:this.arena.width/2,y:this.arena.height/2,initialRadius:560,radius:560,minRadius:105,startsAt:65,closesAt:360,damage:2}:null;this.zoneDamageClock=0;
+    const center={x:this.arena.width/2,y:this.arena.height/2};
+    for(let index=0;index<this.teams.length;index++) {
+      const team=this.teams[index],p=this.active(index);
+      if(this.teams.length===2){p.x=index?970:230;p.y=380;p.facing={x:index?-1:1,y:0};}
+      else {const baseAngle=-Math.PI/2+Math.PI*2*index/this.teams.length;let placed=false;for(let attempt=0;attempt<30;attempt++){const angle=baseAngle+attempt*.31,radius=270-Math.floor(attempt/15)*25,x=center.x+Math.cos(angle)*radius,y=center.y+Math.sin(angle)*radius,clear=!collides(x,y,p.radius,this.arena)&&this.teams.slice(0,index).every((other,otherIndex)=>distance(this.active(otherIndex),{x,y})>p.radius*2+12);if(clear){p.x=x;p.y=y;p.facing=unit(center.x-x,center.y-y);placed=true;break;}}if(!placed){const angle=baseAngle;p.x=center.x+Math.cos(angle)*220;p.y=center.y+Math.sin(angle)*220;p.facing=unit(center.x-p.x,center.y-p.y);}}
+      team.input.aimX=p.x+p.facing.x*300;team.input.aimY=p.y+p.facing.y*300;
+      this.beginDeployment(p,true);
+      if(mode==='battle-royale'&&index===0)p.protect=4.5;
+    }
+  }
+  setPaused(paused) {
+    if(this.mode==='friend'||this.mode==='demo')return false;
+    this.paused=Boolean(paused);
+    if(this.paused)for(const team of this.teams){team.input.dx=0;team.input.dy=0;team.input.cast=null;team.input.m1=false;team.input.dodge=false;team.input.switch=null;}
+    return true;
+  }
+  active(team) { const t=this.teams[team]; return t?.roster?.[t.active]||null; }
+  opponents(teamIndex, livingOnly=true) { return this.teams.map((team,index)=>({index,p:this.active(index)})).filter(({index,p})=>index!==teamIndex&&p&&(!livingOnly||p.hp>0)).map(item=>item.p); }
+  nearestOpponent(teamIndex, from=this.active(teamIndex)) { if(!from)return null;return this.opponents(teamIndex).sort((a,b)=>distance(from,a)-distance(from,b))[0]||null; }
   event(kind,text,extra={}) { const event={id:this.nextId++,kind,text,at:this.time,...extra}; this.events.push(event); this.events=this.events.slice(-24); return event; }
-  effect(kind,x,y,type,text='',life=.65) { this.effects.push({id:this.nextId++,kind,x,y,type,text,life}); }
+  effect(kind,x,y,type,text='',life=.65,extra={}) { this.effects.push({id:this.nextId++,kind,x,y,type,text,life,...extra}); }
   input(teamIndex,input) {
-    if(this.phase!=='battle') return;
+    if(this.phase!=='battle'||this.paused) return;
     const t=this.teams[teamIndex]; if(!t) return;
     const vector=unit(finite(input.dx),finite(input.dy)); const mag=Math.min(1,Math.hypot(finite(input.dx),finite(input.dy)));
     t.input.dx=vector.x*mag; t.input.dy=vector.y*mag;
+    t.input.aimX=clamp(finite(input.aimX,t.input.aimX),0,this.arena.width);
+    t.input.aimY=clamp(finite(input.aimY,t.input.aimY),0,this.arena.height);
+    t.input.lockOn=Boolean(input.lockOn);
     const p=this.active(teamIndex);
+    if(p?.evolution){t.input.dx=0;t.input.dy=0;t.input.cast=null;t.input.m1=false;t.input.dodge=false;t.input.switch=null;return;}
     if(mag>.001&&!p.action&&!p.deployment)p.facing={...vector};
     if(Number.isInteger(input.switch)) this.switchPokemon(teamIndex,input.switch);
     if(input.dodge) this.dodge(teamIndex);
+    if(input.m1) this.basicAttack(teamIndex);
     if(Number.isInteger(input.cast)) this.cast(teamIndex,input.cast);
   }
   dodge(teamIndex) {
     const p=this.active(teamIndex), t=this.teams[teamIndex];
-    if(p.hp<=0 || p.deployment || p.action || p.hitstun>0 || p.dodgeCooldown>0 || p.status==='slp' || p.status==='frz' || p.flinch>0) return false;
+    if(p.hp<=0 || p.deployment || p.evolution || p.action || p.hitstun>0 || p.dodgeCooldown>0 || p.status==='slp' || p.status==='frz' || p.flinch>0) return false;
     p.dodge=.26; p.dodgeCooldown=2.8;
     p.dodgeDirection=Math.hypot(t.input.dx,t.input.dy)>.001?unit(t.input.dx,t.input.dy):{...p.facing};
     this.effect('dodge',p.x,p.y,p.types[0],'',.25); return true;
   }
   switchPokemon(teamIndex,slot,forced=false) {
     const t=this.teams[teamIndex], before=this.active(teamIndex), after=t.roster[slot];
-    if(!after || after.hp<=0 || slot===t.active || (!forced&&(before.hp<=0 || t.switchCooldown>0 || before.deployment || before.dodge>0 || before.action || before.hitstun>0))) return false;
+    if(!after || after.hp<=0 || slot===t.active || (!forced&&(before.hp<=0 || t.switchCooldown>0 || before.deployment || before.evolution || before.dodge>0 || before.action || before.hitstun>0))) return false;
     const outgoingSpecies=before.species;
     if(before.hp>0)this.event('recall',`${before.name}, return!`,{team:teamIndex,sourceSpecies:outgoingSpecies,targetSpecies:after.species,x:before.x,y:before.y,duration:.25});
     if(before.ability==='naturalcure') {before.status=null;before.statusTime=0;}
@@ -136,11 +172,27 @@ class Battle {
     if(p.ability==='synchronize'&&source&&['par','brn','psn','tox'].includes(status)) this.applyStatus(source,status,null);
     return true;
   }
+  basicAttack(teamIndex) {
+    const t=this.teams[teamIndex],p=this.active(teamIndex);
+    if(this.mode!=='battle-royale'||!t||!p||p.hp<=0||p.deployment||p.evolution||p.action||p.hitstun>0||p.attackLock>0||p.dodge>0||p.flinch>0||p.status==='slp'||p.status==='frz'||p.m1Cooldown>0)return false;
+    const target=this.nearestOpponent(teamIndex,p);
+    if(!target||target.hp<=0||distance(p,target)>220||!clearLine(p,target,this.arena))return false;
+    const direction=unit(target.x-p.x,target.y-p.y);
+    moveCircle(p,direction.x*28,direction.y*28,this.arena);
+    p.facing=direction;p.m1Cooldown=.42;p.attackLock=.12;
+    const move=getMove('scratch');
+    this.effect('slash',p.x+direction.x*48,p.y+direction.y*48,'Normal','',.35,{move:'scratch',direction:{...direction}});
+    this.hit(p,target,move,direction,{sourceSpecies:p.species,actionId:this.nextId++});
+    this.event('m1',`${p.name} used Scratch!`,{team:teamIndex,targetSpecies:target.species,sourceSpecies:p.species,x:target.x,y:target.y});
+    return true;
+  }
   cast(teamIndex,slot) {
     const t=this.teams[teamIndex], p=this.active(teamIndex);
-    if(p.hp<=0 || p.deployment || p.action || p.hitstun>0 || p.castLock>0 || p.attackLock>0 || p.dodge>0 || p.flinch>0 || p.status==='slp') return false;
+    if(p.hp<=0 || p.deployment || p.evolution || p.action || p.hitstun>0 || p.castLock>0 || p.attackLock>0 || p.dodge>0 || p.flinch>0 || p.status==='slp') return false;
     const state=p.moves[slot],exhausted=state?.pp<=0;
     if(!Number.isInteger(slot) || !state || slot<0 || slot>3 || (exhausted?p.struggleCooldown:state.cooldown)>0) return false;
+    // Struggle is an emergency move only after every real move has run out of PP.
+    if(exhausted && p.moves.some((entry,index)=>index!==slot&&entry.pp>0)) return false;
     const move=getMove(exhausted?'struggle':state.id), spec=moveSpec(move);
     if(p.status==='frz') {
       if(!move.flags?.defrost)return false;
@@ -155,8 +207,14 @@ class Battle {
       const amount=calculateDamage(p,p,selfMove,()=>.5).damage;
       this.dealDamage(p,amount,p,null);this.effect('status',p.x,p.y,'Psychic','Confused',.9);return false;
     }
-    const direction=unit(p.facing.x,p.facing.y);p.facing=direction;
-    p.action={id:this.nextId++,phase:'windup',move:move.id,kind:spec.kind,category:move.category,type:spec.type,sourceSpecies:p.species,aimX:p.x+direction.x*spec.range,aimY:p.y+direction.y*spec.range,direction:{...direction},elapsed:0,duration:spec.windup,windup:spec.windup,recovery:spec.recovery,startedAt:this.time,released:false};
+    let direction=unit(p.facing.x,p.facing.y);
+    let guidedTarget=null;
+    if(this.mode==='battle-royale'&&!t.cpu){
+      const target=this.nearestOpponent(teamIndex,p),range=target?distance(p,target):Infinity,toTarget=target?unit(target.x-p.x,target.y-p.y):null;
+      if(target&&range<760){const facingDot=direction.x*toTarget.x+direction.y*toTarget.y;if(t.input.lockOn||facingDot>-.45){guidedTarget=target;if(t.input.lockOn)direction=toTarget;else{const weight=range<280?.48:.34;direction=unit(direction.x*(1-weight)+toTarget.x*weight,direction.y*(1-weight)+toTarget.y*weight);}}}
+    }
+    p.facing=direction;
+    p.action={id:this.nextId++,phase:'windup',move:move.id,kind:spec.kind,category:move.category,type:spec.type,sourceSpecies:p.species,targetTeam:guidedTarget?.team??null,homingRate:guidedTarget?(t.input.lockOn?4.2:1.65):0,aimX:p.x+direction.x*spec.range,aimY:p.y+direction.y*spec.range,direction:{...direction},elapsed:0,duration:spec.windup,windup:spec.windup,recovery:spec.recovery,startedAt:this.time,released:false};
     this.event('cast',`${p.name} is preparing ${move.name}.`,this.actionEvent(p,p.action));
     this.effect('windup',p.x,p.y,spec.type,'',spec.windup);
     return true;
@@ -181,7 +239,7 @@ class Battle {
     action.released=true;
     const teamIndex=p.team,move=getMove(action.move),spec=moveSpec(move),direction=action.direction;
     const context={sourceSpecies:action.sourceSpecies,actionId:action.id};
-    this.event('release',`${p.name} released ${move.name}.`,this.actionEvent(p,action));
+    const releaseEvent=this.event('release',`${p.name} released ${move.name}.`,this.actionEvent(p,action));
     this.event('move',`${p.name} used ${move.name}!`,this.actionEvent(p,action));
     this.effect('cast',p.x,p.y,spec.type,'',.25);
     if(spec.kind==='self') {
@@ -196,7 +254,8 @@ class Battle {
       else this.changeStages(p,move.boosts);
       return true;
     }
-    const enemy=this.active(1-teamIndex);
+    const enemy=this.nearestOpponent(teamIndex,p);
+    if(!enemy)return true;
     if(spec.kind==='target') {
       if(distance(p,enemy)>550 || !clearLine(p,enemy,this.arena)) return true;
       if(enemy.protect>0||enemy.dodge>0||enemy.transformed||p.transformed||enemy.hp<=0) return true;
@@ -205,17 +264,22 @@ class Battle {
       this.effect('summon',p.x,p.y,p.types[0],'Transform',1);return true;
     }
     if(spec.kind==='pulse') {
-      this.effect('pulse',p.x,p.y,spec.type,'',.45);
-      if(distance(p,enemy)<=spec.range+enemy.radius && clearLine(p,enemy,this.arena)) this.hit(p,enemy,move,direction,context);
+      const pulseLife=move.id==='earthquake'?.9:move.id==='bulldoze'?.72:move.id==='discharge'?.68:move.id==='surf'?.72:move.id==='sludgewave'?.7:move.id==='leafstorm'?.7:.52;
+      this.effect('pulse',p.x,p.y,spec.type,'',pulseLife,{move:move.id,direction:{...direction}});
+      for(const target of this.opponents(teamIndex)) if(distance(p,target)<=spec.range+target.radius && clearLine(p,target,this.arena)) this.hit(p,target,move,direction,context);
     } else if(spec.kind==='melee') {
-      moveCircle(p,direction.x*(move.priority>0?72:34),direction.y*(move.priority>0?72:34),this.arena);
-      this.effect('slash',p.x+direction.x*45,p.y+direction.y*45,spec.type,'',.28);
-      const delta=unit(enemy.x-p.x,enemy.y-p.y);
-      if(distance(p,enemy)<=spec.range+enemy.radius && direction.x*delta.x+direction.y*delta.y>.35 && clearLine(p,enemy,this.arena)) this.hit(p,enemy,move,direction,context);
+      const dashByMove={volttackle:112,wildcharge:92,flareblitz:86,bravebird:98,headsmash:84,aquajet:72,quickattack:86,extremespeed:122,doubleedge:70,takedown:58,bodyslam:54,struggle:48,zenheadbutt:48,headbutt:38,ironhead:32,dragonclaw:30,closecombat:28,playrough:32,leafblade:28,slash:28};
+      const targetBefore=this.nearestOpponent(teamIndex,p),distanceBefore=targetBefore?distance(p,targetBefore):Infinity,dashMax=dashByMove[move.id];
+      const travel=dashMax?(targetBefore?clamp(distanceBefore-Math.max(42,(targetBefore.radius||24)+20),0,dashMax):dashMax):(move.priority>0?72:34);
+      if(releaseEvent)releaseEvent.dashDistance=travel;
+      moveCircle(p,direction.x*travel,direction.y*travel,this.arena);
+      this.effect('slash',p.x+direction.x*45,p.y+direction.y*45,spec.type,'',.28,{move:move.id});
+      const targets=this.opponents(teamIndex).filter(target=>distance(p,target)<=spec.range+target.radius && direction.x*unit(target.x-p.x,target.y-p.y).x+direction.y*unit(target.x-p.x,target.y-p.y).y>.35 && clearLine(p,target,this.arena)).sort((a,b)=>distance(p,a)-distance(p,b));
+      if(targets.length)this.hit(p,targets[0],move,direction,context);
     } else {
       const start={x:p.x+direction.x*(p.radius+spec.radius+3),y:p.y+direction.y*(p.radius+spec.radius+3)};
       if(!clearLine(p,start,this.arena,spec.radius)||collides(start.x,start.y,spec.radius,this.arena)) return true;
-      this.projectiles.push({id:this.nextId++,team:teamIndex,owner:p,...context,move:move.id,type:spec.type,kind:move.category==='Status'?'status':spec.radius>=25?'wave':'bolt',x:start.x,y:start.y,vx:direction.x*spec.speed,vy:direction.y*spec.speed,radius:spec.radius,life:spec.range/spec.speed,travel:0});
+      this.projectiles.push({id:this.nextId++,team:teamIndex,owner:p,...context,move:move.id,type:spec.type,kind:move.category==='Status'?'status':spec.radius>=25?'wave':'bolt',x:start.x,y:start.y,vx:direction.x*spec.speed,vy:direction.y*spec.speed,radius:spec.radius,life:spec.range/spec.speed,travel:0,targetTeam:action.targetTeam,homingRate:action.homingRate||0});
     }
     return true;
   }
@@ -235,7 +299,7 @@ class Battle {
     return false;
   }
   hit(attacker,defender,move,direction,context={}) {
-    if(defender.hp<=0 || defender.dodge>0) return;
+    if(attacker?.evolution || defender.hp<=0 || defender.dodge>0 || defender.evolution) return;
     if(defender.protect>0) {this.effect('blocked',defender.x,defender.y,'Normal','Protected',.7);return;}
     if(this.abilityBlocks(attacker,defender,move)) {this.effect('immune',defender.x,defender.y,defender.types[0],defender.abilityName,.9);return;}
     const mult=accuracyMultiplier((attacker.stages.accuracy||0)-(defender.stages.evasion||0));
@@ -243,16 +307,22 @@ class Battle {
     if(!alwaysHits && this.random()*100>move.accuracy*mult) {this.effect('miss',defender.x,defender.y,'Normal','Miss',.6);return;}
     if(move.category==='Status') {
       if(move.id==='thunderwave'&&typeMultiplier('Electric',defender.types)===0 || move.flags?.powder&&defender.types.includes('Grass')) {this.effect('immune',defender.x,defender.y,effectiveType(move),'Immune',.8);return;}
-      if(move.status && !this.applyStatus(defender,move.status,attacker)) this.effect('immune',defender.x,defender.y,effectiveType(move),'No effect',.8);
+      if(move.status) {
+        const applied=this.applyStatus(defender,move.status,attacker);
+        if(!applied)this.effect('immune',defender.x,defender.y,effectiveType(move),'No effect',.8);
+        else if(move.id==='willowisp')this.effect('wispHit',defender.x,defender.y-12,'Fire','',.95,{move:move.id});
+      }
       this.changeStages(defender,move.boosts);return;
     }
     const result=calculateDamage(attacker,defender,move,this.random);
     if(result.effectiveness===0) {this.effect('immune',defender.x,defender.y,effectiveType(move),'Immune',.7);return;}
     let amount=result.damage;
     if(attacker.flashFire&&effectiveType(move)==='Fire') amount=Math.floor(amount*1.5);
+    if(this.mode==='battle-royale')amount=Math.min(Math.max(1,Math.floor(amount*.78)),Math.max(2,Math.floor(defender.maxHp*0.16)));
     if(defender.ability==='sturdy'&&defender.hp===defender.maxHp&&amount>=defender.hp) amount=defender.hp-1;
     const dealt=Math.min(defender.hp,amount);
     this.dealDamage(defender,amount,attacker,move,context);
+    if(dealt>0&&this.mode==='battle-royale')this.awardExperience(attacker.team,25,false);
     if(result.effectiveness>1) this.effect('effective',defender.x,defender.y-25,effectiveType(move),'Super effective!',.75);
     else if(result.effectiveness<1)this.effect('resisted',defender.x,defender.y-25,effectiveType(move),'Resisted',.6);
     if(result.critical)this.effect('critical',defender.x,defender.y-44,effectiveType(move),'Critical!',.6);
@@ -283,16 +353,119 @@ class Battle {
       defender.counter=0;
     }
   }
+  refreshLevelStats(p,hpRatio=p.hp/Math.max(1,p.maxHp)) {
+    const species=this.speciesById.get(p.originalSpecies),canonical=Dex.species.get(p.originalSpecies),base=species?.baseStats||canonical?.baseStats;
+    if(!base)return;
+    const raw=canonicalStats(base,p.level),hp=Math.round(raw.hp*(p.healthScale||1)),stats={...raw,hp};p.originalStats={...stats};p.stats={...stats};p.maxHp=hp;p.hp=clamp(Math.round(hpRatio*p.maxHp),p.hp>0?1:0,p.maxHp);
+  }
+  tryEvolution(p) {
+    if(!this.speciesById.size||p.transformed||p.evolution)return false;
+    const canonical=Dex.species.get(p.originalSpecies),threshold=p.nextEvolutionLevel||Math.min(8,Math.max(5,Number(canonical?.evoLevel)||8));
+    if(p.level<threshold)return false;
+    const nextIds=(canonical?.evos||[]).map(idOf).filter(id=>this.speciesById.has(id));
+    if(!nextIds.length){p.nextEvolutionLevel=null;return false;}
+    const nextId=nextIds[Math.floor(this.random()*nextIds.length)],previousSpecies=p.species,previousName=p.name;
+    p.evolution={fromSpecies:previousSpecies,toSpecies:nextId,elapsed:0,duration:2.6};
+    p.action=null;p.attackLock=0;p.castLock=0;p.vx=0;p.vy=0;p.knockX=0;p.knockY=0;
+    p.protect=Math.max(p.protect||0,p.evolution.duration+.25);
+    this.event('evolutionStart',previousName+' is evolving!',{team:p.team,sourceSpecies:previousSpecies,targetSpecies:nextId,species:nextId,x:p.x,y:p.y,duration:p.evolution.duration});
+    return true;
+  }
+  upgradeEvolutionMoves(p, species) {
+    const allowedIds = [...new Set([...(species.learnset || []), ...(species.moves || [])].map(idOf))];
+    const available = new Map();
+    for (const id of allowedIds) {
+      const move = getMove(id);
+      if (move && move.id !== 'struggle') available.set(move.id, move);
+    }
+    if (!available.size) return [];
+
+    const slots = (p.moves || []).slice(0, 4).map((entry, index) => ({
+      index, entry: { ...entry }, move: available.get(idOf(entry.id)) || null,
+    }));
+    while (slots.length < 4) slots.push({ index: slots.length, entry: null, move: null });
+
+    const used = new Set(slots.filter(slot => slot.move).map(slot => slot.move.id));
+    const candidates = [...available.values()]
+      .filter(move => move.category !== 'Status' && (move.basePower || 0) >= 35)
+      .sort((a, b) => evolutionMoveScore(b, species.types) - evolutionMoveScore(a, species.types) || a.name.localeCompare(b.name));
+    const fallbackCandidates = [...available.values()]
+      .sort((a, b) => evolutionMoveScore(b, species.types) - evolutionMoveScore(a, species.types) || a.name.localeCompare(b.name));
+    const learned = [];
+    const assign = (slot, move) => {
+      if (slot.move) used.delete(slot.move.id);
+      slot.move = move;
+      slot.entry = { id: move.id, pp: move.pp, maxPp: move.pp, cooldown: 0 };
+      used.add(move.id);
+      learned.push({ id: move.id, name: move.name });
+    };
+
+    // If this evolution cannot use an old move, replace it with a legal move immediately.
+    for (const slot of slots.filter(item => !item.move)) {
+      const candidate = candidates.find(move => !used.has(move.id))
+        || fallbackCandidates.find(move => !used.has(move.id));
+      if (candidate) assign(slot, candidate);
+    }
+
+    // Each evolution can teach up to two stronger attacks, while keeping useful healing/buff moves.
+    let upgrades = 0;
+    while (upgrades < 2) {
+      const weakest = slots
+        .filter(slot => slot.move && !(slot.move.category === 'Status' && (slot.move.heal || slot.move.self?.boosts || slot.move.boosts)))
+        .sort((a, b) => evolutionMoveScore(a.move, species.types) - evolutionMoveScore(b.move, species.types) || b.index - a.index)[0];
+      if (!weakest) break;
+      const weakestScore = evolutionMoveScore(weakest.move, species.types);
+      const candidate = candidates.find(move => !used.has(move.id) && evolutionMoveScore(move, species.types) >= weakestScore + 12);
+      if (!candidate) break;
+      assign(weakest, candidate);
+      upgrades++;
+    }
+
+    p.moves = slots.filter(slot => slot.move && slot.entry).map(slot => slot.entry).slice(0, 4);
+    return learned;
+  }
+  finishEvolution(p) {
+    const transition=p.evolution;if(!transition)return false;
+    const species=this.speciesById.get(transition.toSpecies);
+    if(!species){p.evolution=null;return false;}
+    const previousName=p.name,previousSpecies=p.species,nextCanonical=Dex.species.get(species.id);
+    p.evolution=null;p.species=species.id;p.originalSpecies=species.id;
+    p.nextEvolutionLevel=(nextCanonical?.evos||[]).map(idOf).some(id=>this.speciesById.has(id))?p.level+2:null;
+    p.name=species.name;p.sprite=species.sprite;p.spriteAnimated=species.spriteAnimated;p.types=[...species.types];p.originalTypes=[...species.types];p.transformed=false;p.originalMoves=null;
+    const learnedMoves=this.upgradeEvolutionMoves(p,species);
+    const raw=canonicalStats(species.baseStats,p.level),hp=Math.round(raw.hp*(p.healthScale||1)),stats={...raw,hp};
+    p.originalStats={...stats};p.stats={...stats};p.maxHp=hp;p.hp=p.maxHp;
+    p.abilityName=nextCanonical?.abilities?.['0']||species.abilities?.['0']||'';p.ability=SUPPORTED_ABILITIES.has(idOf(p.abilityName))?idOf(p.abilityName):'';p.abilityImplemented=SUPPORTED_ABILITIES.has(idOf(p.abilityName));
+    p.status=null;p.statusTime=0;p.toxicCounter=0;p.confusion=0;p.flinch=0;p.hitstun=0;p.hurtTime=0;p.action=null;p.attackLock=0;p.castLock=0;p.vx=0;p.vy=0;p.knockX=0;p.knockY=0;
+    const learnedSummary=learnedMoves.length?` Learned ${learnedMoves.map(move=>move.name).join(' & ')}.`:'';
+    this.event('evolution',p.name+' evolved!'+learnedSummary+' Full HP restored!',{team:p.team,sourceSpecies:previousSpecies,targetSpecies:p.species,species:p.species,learnedMoves:learnedMoves.map(move=>move.id),x:p.x,y:p.y});
+    this.effect('summon',p.x,p.y,p.types[0],p.name,1.2);return true;
+  }
+  updateEvolution(p,dt) {
+    if(!p.evolution)return false;
+    p.evolution.elapsed=Math.min(p.evolution.duration,p.evolution.elapsed+dt);
+    if(p.evolution.elapsed+1e-8<p.evolution.duration)return true;
+    this.finishEvolution(p);return false;
+  }
+  awardExperience(teamIndex,amount=60,notify=true) {
+    if(this.mode!=='battle-royale')return;
+    const p=this.active(teamIndex);if(!p||p.hp<=0)return;
+    if(p.transformed)this.resetTransform(p);
+    p.xp=Math.min(5700,p.xp+amount);const targetLevel=Math.min(100,5+Math.floor(p.xp/60));
+    while(p.level<targetLevel){const hpRatio=p.hp/Math.max(1,p.maxHp);p.level++;this.refreshLevelStats(p,hpRatio);this.event('levelUp',`${p.name} reached level ${p.level}!`,{team:teamIndex,level:p.level,xp:p.xp,x:p.x,y:p.y});this.tryEvolution(p);}
+    this.event('xp',`${p.name} gained ${amount} XP!`,{team:teamIndex,xp:p.xp,level:p.level,x:p.x,y:p.y,silent:!notify});
+  }
+  eliminate(teamIndex, reason='eliminated') { const p=this.active(teamIndex);if(p?.evolution)p.evolution=null;if(p&&p.hp>0)this.dealDamage(p,p.hp,null,null);if(this.mode==='battle-royale'){const alive=this.teams.map(t=>t.roster.some(mon=>mon.hp>0));const count=alive.filter(Boolean).length;if(count<=1)this.finish(count===1?alive.findIndex(Boolean):null,reason);} }
   dealDamage(p,amount,source,move,context={}) {
-    if(p.hp<=0)return;
+    if(p.hp<=0||p.evolution)return 0;
     const dealt=Math.min(p.hp,Math.max(0,Math.floor(amount)));p.hp-=dealt;
-    this.effect('damage',p.x,p.y-20,move?effectiveType(move):'Normal',String(dealt),.8);
+    this.effect('damage',p.x,p.y-20,move?effectiveType(move):'Normal',String(dealt),.8,move?{move:move.id}:{});
     if(dealt>0){p.hurtTime=.26;this.event('hurt',`${p.name} took ${dealt} damage.`,{team:p.team,targetSpecies:p.species,sourceSpecies:context.sourceSpecies||source?.species||null,move:move?.id||null,actionId:context.actionId||null,damage:dealt,x:p.x,y:p.y,duration:.26});}
-    if(p.hp<=0) {p.vx=0;p.vy=0;p.protect=0;p.dodge=0;p.action=null;p.deployment=null;p.attackLock=0;p.hitstun=0;this.event('faint',`${p.name} fainted!`,{team:p.team,species:p.species,targetSpecies:p.species,sourceSpecies:context.sourceSpecies||source?.species||null,x:p.x,y:p.y,duration:1.15});this.effect('faint',p.x,p.y,p.types[0],'',1.1);this.teams[p.team].respawn=1.15;}
+    if(p.hp<=0) {p.vx=0;p.vy=0;p.protect=0;p.dodge=0;p.action=null;p.deployment=null;p.attackLock=0;p.hitstun=0;this.event('faint',`${p.name} fainted!`,{team:p.team,species:p.species,targetSpecies:p.species,sourceSpecies:context.sourceSpecies||source?.species||null,x:p.x,y:p.y,duration:1.15});this.effect('faint',p.x,p.y,p.types[0],'',1.1);this.teams[p.team].respawn=1.15;if(this.mode==='battle-royale'&&source&&Number.isInteger(source.team)&&source.team!==p.team){this.eliminations[source.team]=(this.eliminations[source.team]||0)+1;this.awardExperience(source.team,60);this.heal(source,Math.floor(source.maxHp*.18));this.event('elimination',`${this.teams[source.team].name} eliminated ${p.name}!`,{team:source.team,targetSpecies:p.species,sourceSpecies:source.species,x:p.x,y:p.y});}}
   }
   updatePokemon(p,dt,active) {
     for(const m of p.moves)m.cooldown=Math.max(0,m.cooldown-dt);
-    for(const key of ['protect','dodge','dodgeCooldown','attackLock','castLock','counter','confusion','flinch','hitstun','hurtTime','freezeImmunity','struggleCooldown'])p[key]=Math.max(0,p[key]-dt);
+    for(const key of ['protect','dodge','dodgeCooldown','attackLock','castLock','counter','confusion','flinch','hitstun','hurtTime','freezeImmunity','struggleCooldown','m1Cooldown'])p[key]=Math.max(0,p[key]-dt);
     if(!active||p.hp<=0||p.deployment)return;
     if(p.status) {
       p.statusTime=Math.max(0,p.statusTime-dt);p.statusTick+=dt;
@@ -343,8 +516,8 @@ class Battle {
     this.ppOrbs=this.ppOrbs.filter(orb=>orb.life>0);
   }
   cpuInput(index) {
-    const t=this.teams[index], p=this.active(index), enemy=this.active(1-index);
-    if(p.hp<=0||enemy.hp<=0||p.deployment)return;
+    const t=this.teams[index], p=this.active(index), enemy=this.nearestOpponent(index);
+    if(p.hp<=0||!enemy||p.deployment)return;
     const hasOffense=pokemon=>pokemon.moves.some(state=>state.pp>0&&(getMove(state.id).basePower>0||['counter','mirrorcoat','transform'].includes(state.id)));
     const exhaustedOffense=!hasOffense(p);
     if(exhaustedOffense) {
@@ -394,11 +567,13 @@ class Battle {
     if(attackSlot!==null)t.attackWait=this.cpuLevel<=4?1.45-this.cpuLevel*.06:Math.max(.95,1.15-(this.cpuLevel-4)*.02);
   }
   step(dt=1/60) {
-    if(this.phase!=='battle')return;dt=clamp(dt,0,1/20);this.time+=dt;this.tick++;
-    for(let teamIndex=0;teamIndex<2;teamIndex++) {
+    if(this.phase!=='battle'||this.paused)return;dt=clamp(dt,0,1/20);this.time+=dt;this.tick++;
+    if(this.zone){const z=this.zone,progress=clamp((this.time-z.startsAt)/(z.closesAt-z.startsAt),0,1);z.radius=z.initialRadius+(z.minRadius-z.initialRadius)*progress;if(this.time>=z.startsAt){this.zoneDamageClock+=dt;if(this.zoneDamageClock>=1){this.zoneDamageClock-=1;for(let i=0;i<this.teams.length;i++){const p=this.active(i);if(p&&p.hp>0&&distance(p,z)>z.radius){const damage=Math.max(1,Math.round(z.damage+progress*10));this.dealDamage(p,damage,p,null);this.event('zoneDamage',`${p.name} was hurt by the closing zone!`,{team:i,species:p.species,x:p.x,y:p.y,damage});}}}}}
+    for(let teamIndex=0;teamIndex<this.teams.length;teamIndex++) {
       const t=this.teams[teamIndex];t.switchCooldown=Math.max(0,t.switchCooldown-dt);t.attackWait=Math.max(0,t.attackWait-dt);
       for(let slot=0;slot<t.roster.length;slot++)this.updatePokemon(t.roster[slot],dt,slot===t.active);
       let p=this.active(teamIndex);
+      if(p.hp>0&&this.updateEvolution(p,dt)){p.vx=0;p.vy=0;continue;}
       if(p.hp<=0) {
         t.respawn-=dt;
         const next=t.roster.findIndex(candidate=>candidate.hp>0);
@@ -421,30 +596,38 @@ class Battle {
       moveCircle(p,(p.vx+p.knockX)*dt,(p.vy+p.knockY)*dt,this.arena);
       p.knockX*=Math.exp(-8*dt);p.knockY*=Math.exp(-8*dt);
     }
-    const first=this.active(0),second=this.active(1),overlap=first.radius+second.radius-distance(first,second);
-    if(first.hp>0&&second.hp>0&&overlap>0) {const push=unit(second.x-first.x,second.y-first.y);moveCircle(first,-push.x*overlap/2,-push.y*overlap/2,this.arena);moveCircle(second,push.x*overlap/2,push.y*overlap/2,this.arena);}
+    for(let i=0;i<this.teams.length;i++)for(let j=i+1;j<this.teams.length;j++){const first=this.active(i),second=this.active(j);if(!first||!second||first.hp<=0||second.hp<=0)continue;const overlap=first.radius+second.radius-distance(first,second);if(overlap>0){const push=unit(second.x-first.x,second.y-first.y);moveCircle(first,-push.x*overlap/2,-push.y*overlap/2,this.arena);moveCircle(second,push.x*overlap/2,push.y*overlap/2,this.arena);}}
     this.updatePpOrbs(dt);
     for(const shot of this.projectiles) {
       shot.life-=dt;if(shot.life<=0)continue;
-      const target=this.active(1-shot.team),count=Math.max(1,Math.ceil(Math.hypot(shot.vx,shot.vy)*dt/8));
+      const targets=this.opponents(shot.team),count=Math.max(1,Math.ceil(Math.hypot(shot.vx,shot.vy)*dt/8));
       for(let i=0;i<count;i++) {
+        if(shot.homingRate>0&&Number.isInteger(shot.targetTeam)){
+          const target=this.active(shot.targetTeam);
+          if(target&&target.hp>0){const speed=Math.hypot(shot.vx,shot.vy),current=unit(shot.vx,shot.vy),desired=unit(target.x-shot.x,target.y-shot.y),angle=Math.atan2(current.x*desired.y-current.y*desired.x,current.x*desired.x+current.y*desired.y),turn=clamp(angle,-shot.homingRate*dt/count,shot.homingRate*dt/count),cos=Math.cos(turn),sin=Math.sin(turn),vx=current.x*cos-current.y*sin,vy=current.x*sin+current.y*cos;shot.vx=vx*speed;shot.vy=vy*speed;}
+        }
         shot.x+=shot.vx*dt/count;shot.y+=shot.vy*dt/count;
         if(collides(shot.x,shot.y,shot.radius,this.arena)){shot.life=0;this.effect('impact',shot.x,shot.y,shot.type,'',.3);break;}
-        if(target.hp>0&&distance(shot,target)<=shot.radius+target.radius){this.hit(shot.owner,target,getMove(shot.move),unit(shot.vx,shot.vy),{sourceSpecies:shot.sourceSpecies,actionId:shot.actionId});shot.life=0;this.effect('impact',shot.x,shot.y,shot.type,'',.35);break;}
+        const target=targets.filter(p=>p.hp>0&&distance(shot,p)<=shot.radius+p.radius).sort((a,b)=>distance(shot,a)-distance(shot,b))[0];
+        if(target){this.hit(shot.owner,target,getMove(shot.move),unit(shot.vx,shot.vy),{sourceSpecies:shot.sourceSpecies,actionId:shot.actionId});shot.life=0;this.effect('impact',shot.x,shot.y,shot.type,'',.35);break;}
       }
     }
     this.projectiles=this.projectiles.filter(p=>p.life>0);this.effects.forEach(e=>e.life-=dt);this.effects=this.effects.filter(e=>e.life>0).slice(-70);this.events=this.events.filter(e=>this.time-e.at<2.5);
     const alive=this.teams.map(t=>t.roster.some(p=>p.hp>0));
-    if(!alive[0]||!alive[1])this.finish(alive[0]===alive[1]?null:alive[0]?0:1,'knockout');
+    if(this.mode==='battle-royale') {
+      const survivors=alive.map((isAlive,index)=>({isAlive,index,kills:this.eliminations[index]||0,p:this.active(index)})).filter(entry=>entry.isAlive);
+      if(survivors.length<=1)this.finish(survivors.length?survivors[0].index:null,'last-survivor');
+      else if(this.time>=420){survivors.sort((a,b)=>b.kills-a.kills||b.p.hp/Math.max(1,b.p.maxHp)-a.p.hp/Math.max(1,a.p.maxHp));const a=survivors[0],b=survivors[1];this.finish(a.kills===b.kills&&Math.abs(a.p.hp/a.p.maxHp-b.p.hp/b.p.maxHp)<.001?null:a.index,'time');}
+    } else if(!alive[0]||!alive[1])this.finish(alive[0]===alive[1]?null:alive[0]?0:1,'knockout');
     else if(this.time>=300) {const health=this.teams.map(t=>t.roster.reduce((n,p)=>n+p.hp/p.maxHp,0)/t.roster.length);this.finish(Math.abs(health[0]-health[1])<.001?null:health[0]>health[1]?0:1,'time');}
   }
   finish(winner,reason='knockout') {if(this.phase!=='battle')return;this.phase='finished';this.winner=winner;this.reason=reason;this.event('result',winner===null?'Draw!':`${this.teams[winner].name} wins!`,{winner});this.onFinish({winner,reason,battle:this});}
   startMessage(selfTeam) {
-    return {type:'battleStart',id:this.id,mode:this.mode,stage:this.stage,arena:this.arena,selfTeam,rules:{level:50,ivs:31,evs:0,nature:'neutral',turnSeconds:4,limitSeconds:300,arenaDamageScale:ARENA_DAMAGE_SCALE,freezeSeconds:[.8,1.8],facingBasedAttacks:true,deployment:DEPLOYMENT,spawnShield:DEPLOYMENT.grace,ppOrbs:PP_ORBS},teams:this.teams.map(t=>({name:t.name,pokemon:t.roster.map(p=>({species:p.species,name:p.name,types:p.types,hp:p.hp,maxHp:p.maxHp,sprite:p.sprite,spriteAnimated:p.spriteAnimated,ability:p.abilityName,abilityImplemented:p.abilityImplemented,moves:p.moves.map(m=>({...m,name:getMove(m.id).name,type:effectiveType(getMove(m.id)),category:getMove(m.id).category,cooldown:moveSpec(getMove(m.id)).cooldown,windup:moveSpec(getMove(m.id)).windup,recovery:moveSpec(getMove(m.id)).recovery,attackKind:moveSpec(getMove(m.id)).kind}))}))}))};
+    return {type:'battleStart',id:this.id,mode:this.mode,stage:this.stage,arena:this.arena,selfTeam,rules:{level:this.mode==='battle-royale'?5:50,ivs:31,evs:0,nature:'neutral',turnSeconds:4,limitSeconds:this.mode==='battle-royale'?420:300,arenaDamageScale:ARENA_DAMAGE_SCALE,freezeSeconds:[.8,1.8],facingBasedAttacks:true,deployment:DEPLOYMENT,spawnShield:DEPLOYMENT.grace,ppOrbs:PP_ORBS},teams:this.teams.map(t=>({name:t.name,pokemon:t.roster.map(p=>({species:p.species,name:p.name,types:p.types,level:p.level,xp:p.xp,hp:p.hp,maxHp:p.maxHp,sprite:p.sprite,spriteAnimated:p.spriteAnimated,ability:p.abilityName,abilityImplemented:p.abilityImplemented,moves:p.moves.map(m=>({...m,name:getMove(m.id).name,type:effectiveType(getMove(m.id)),category:getMove(m.id).category,cooldown:moveSpec(getMove(m.id)).cooldown,windup:moveSpec(getMove(m.id)).windup,recovery:moveSpec(getMove(m.id)).recovery,attackKind:moveSpec(getMove(m.id)).kind}))}))}))};
   }
   snapshot() {
-    return {type:'state',id:this.id,tick:this.tick,time:this.time,phase:this.phase,arenaId:this.arena.id,
-      fighters:this.teams.map((t,i)=>{const p=this.active(i);return {id:p.id,team:p.team,slot:p.slot,species:p.species,name:p.name,x:p.x,y:p.y,vx:p.vx,vy:p.vy,radius:p.radius,facing:p.facing,hp:p.hp,maxHp:p.maxHp,types:p.types,status:p.status,statusTime:p.statusTime,protect:p.protect,dodge:p.dodge,dodgeCooldown:p.dodgeCooldown,stages:p.stages,cooldowns:p.moves.map(m=>m.pp<=0?p.struggleCooldown:m.cooldown),pp:p.moves.map(m=>m.pp),maxPp:p.moves.map(m=>m.maxPp),moves:p.moves.map(m=>m.id),switchCooldown:t.switchCooldown,ability:p.abilityName,abilityImplemented:p.abilityImplemented,confusion:p.confusion,counter:p.counter,action:p.action?{...p.action,direction:{...p.action.direction}}:null,deployment:p.deployment?{...p.deployment}:null,hitstun:p.hitstun,hurtTime:p.hurtTime,freezeImmunity:p.freezeImmunity};}),
+    return {type:'state',id:this.id,tick:this.tick,time:this.time,phase:this.phase,paused:this.paused,arenaId:this.arena.id,zone:this.zone?{...this.zone,timeToStart:Math.max(0,this.zone.startsAt-this.time),closing:this.time>=this.zone.startsAt}:null,
+      remaining:this.teams.filter(t=>t.roster.some(p=>p.hp>0)).length,eliminations:[...this.eliminations],fighters:this.teams.map((t,i)=>{const p=this.active(i);return {id:p.id,team:p.team,slot:p.slot,species:p.species,name:p.name,level:p.level,xp:p.xp,nextEvolutionLevel:p.nextEvolutionLevel,x:p.x,y:p.y,vx:p.vx,vy:p.vy,radius:p.radius,facing:p.facing,hp:p.hp,maxHp:p.maxHp,types:p.types,status:p.status,statusTime:p.statusTime,protect:p.protect,dodge:p.dodge,dodgeCooldown:p.dodgeCooldown,stages:p.stages,cooldowns:p.moves.map(m=>m.pp<=0?p.struggleCooldown:m.cooldown),pp:p.moves.map(m=>m.pp),maxPp:p.moves.map(m=>m.maxPp),moves:p.moves.map(m=>m.id),switchCooldown:t.switchCooldown,ability:p.abilityName,abilityImplemented:p.abilityImplemented,confusion:p.confusion,counter:p.counter,m1Cooldown:p.m1Cooldown||0,action:p.action?{...p.action,direction:{...p.action.direction}}:null,deployment:p.deployment?{...p.deployment}:null,hitstun:p.hitstun,hurtTime:p.hurtTime,freezeImmunity:p.freezeImmunity,evolution:p.evolution?{...p.evolution}:null};}),
       benches:this.teams.map(t=>t.roster.map(p=>({species:p.species,name:p.name,hp:p.hp,maxHp:p.maxHp,status:p.status}))),
       projectiles:this.projectiles.map(({owner,...s})=>s),ppOrbs:this.ppOrbs.map(orb=>({...orb})),effects:this.effects,events:this.events};
   }

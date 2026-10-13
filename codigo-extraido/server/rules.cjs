@@ -72,14 +72,15 @@ function accuracyMultiplier(stage) {
   return value >= 0 ? (3 + value) / 3 : 3 / (3 - value);
 }
 
-function canonicalStats(baseStats) {
-                                                                           
+function canonicalStats(baseStats, level = 50) {
   const result = {};
+  const lvl = clamp(Math.floor(finite(level, 50)), 1, 100);
   for (const stat of ['hp', 'atk', 'def', 'spa', 'spd', 'spe']) {
     const base = finite(baseStats[stat], 50);
-    result[stat] = Math.floor((2 * base + 31) * 0.5) + (stat === 'hp' ? 60 : 5);
+    const scaled = Math.floor((2 * base + 31) * lvl / 100);
+    result[stat] = scaled + (stat === 'hp' ? lvl + 10 : 5);
   }
-  if (baseStats.hp === 1) result.hp = 1;                            
+  if (baseStats.hp === 1) result.hp = 1;
   return result;
 }
 
