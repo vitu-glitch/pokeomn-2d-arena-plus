@@ -256,7 +256,7 @@ export class CombatRenderer {
     if (kind === 'melee') {
       const moveId=event.move;
       const chargeLengths={volttackle:118,wildcharge:98,flareblitz:92,aquajet:78,quickattack:90,extremespeed:128,doubleedge:76,takedown:64,struggle:52};
-      if(chargeLengths[moveId])this.effects.push({kind:'chargeTrail',x,y:y-12,type:event.type,direction,life:.42,max:.42,move:moveId,length:Math.max(8,Number(event.dashDistance)||chargeLengths[moveId])});
+      if(chargeLengths[moveId])this.effects.push({kind:'chargeTrail',x,y:y-12,type:event.type,direction,life:.42,max:.42,move:moveId,length:Math.max(2,Number.isFinite(Number(event.dashDistance))?Number(event.dashDistance):chargeLengths[moveId])});
       else if(moveId==='bodyslam')this.effects.push({kind:'bodySlamLaunch',x,y:y-12,type:'Normal',direction,life:.42,max:.42,move:moveId});
       else if(moveId==='closecombat')this.effects.push({kind:'combatFlurry',x:x+direction.x*24,y:y+direction.y*24-12,type:event.type,direction,life:.42,max:.42,move:moveId});
       else if(moveId==='dragonclaw'||moveId==='leafblade'||moveId==='slash')this.effects.push({kind:'clawArc',x:x+direction.x*36,y:y+direction.y*36-12,type:event.type,direction,life:.34,max:.34,move:moveId});
