@@ -226,12 +226,15 @@ export class CombatRenderer {
       this.seen.add(key);
       if (effect.text) this.labels.push({x:effect.x,y:effect.y-18,text:effect.text,type:effect.type,life:.9,max:.9});
       if (effect.kind === 'damage') {
+        const signature=effect.move;
+        if(signature&&['fireblast','bodyslam','volttackle','wildcharge','struggle','doubleedge','takedown','flareblitz','aquajet','quickattack','extremespeed','headbutt','zenheadbutt','ironhead','closecombat','dragonclaw','playrough','leafblade','slash'].includes(signature)) this.effects.push({kind:'moveImpact',move:signature,x:effect.x,y:effect.y+12,type:effect.type,life:.52,max:.52});
         this.burst(effect.x, effect.y + 12, effect.type, 9, 70);
         this.addDecal(effect.x,effect.y+20,effect.type);
-        if (this.settings().screenShake) this.shake = Math.max(this.shake, 2);
+        if (this.settings().screenShake) this.shake = Math.max(this.shake, signature==='bodyslam'||signature==='fireblast'?4:2);
       }
-      if (['impact','effective','critical','heal','boost','immune','blocked'].includes(effect.kind)) {
-        this.effects.push({...effect,life:.35,max:.35});
+      if (['impact','effective','critical','heal','boost','immune','blocked','wispHit'].includes(effect.kind)) {
+        const life=Math.max(.2,Number(effect.life)||.35);
+        this.effects.push({...effect,life,max:life});
         if (effect.kind==='impact') this.burst(effect.x,effect.y,effect.type,12,90);
         if (effect.kind==='impact') this.addDecal(effect.x,effect.y,effect.type);
       }
@@ -250,7 +253,17 @@ export class CombatRenderer {
     if(event.actionId){this.emissions.set(event.actionId,{x:x+direction.x*18,y:y+direction.y*18-12,at:now,type:event.type,move:event.move});if(this.emissions.size>64)this.emissions.delete(this.emissions.keys().next().value);}
     const kind = event.attackKind || move.arena?.kind || 'projectile';
     this.audio.cast(event.type || move.type,event.move);
-    if (kind === 'melee') this.effects.push({kind:'slash',x,y:y-12,type:event.type,direction,life:.28,max:.28,move:event.move});
+    if (kind === 'melee') {
+      const moveId=event.move;
+      const chargeLengths={volttackle:118,wildcharge:98,flareblitz:92,aquajet:78,quickattack:90,extremespeed:128,doubleedge:76,takedown:64,struggle:52};
+      if(chargeLengths[moveId])this.effects.push({kind:'chargeTrail',x,y:y-12,type:event.type,direction,life:.42,max:.42,move:moveId,length:chargeLengths[moveId]});
+      else if(moveId==='bodyslam')this.effects.push({kind:'bodySlamLaunch',x,y:y-12,type:'Normal',direction,life:.42,max:.42,move:moveId});
+      else if(moveId==='closecombat')this.effects.push({kind:'combatFlurry',x:x+direction.x*24,y:y+direction.y*24-12,type:event.type,direction,life:.42,max:.42,move:moveId});
+      else if(moveId==='dragonclaw'||moveId==='leafblade'||moveId==='slash')this.effects.push({kind:'clawArc',x:x+direction.x*36,y:y+direction.y*36-12,type:event.type,direction,life:.34,max:.34,move:moveId});
+      else if(moveId==='playrough')this.effects.push({kind:'fairyImpact',x:x+direction.x*34,y:y+direction.y*34-12,type:event.type,direction,life:.4,max:.4,move:moveId});
+      else if(['headbutt','zenheadbutt','ironhead'].includes(moveId))this.effects.push({kind:'heavyImpact',x:x+direction.x*34,y:y+direction.y*34-12,type:event.type,direction,life:.38,max:.38,move:moveId});
+      else this.effects.push({kind:'slash',x,y:y-12,type:event.type,direction,life:.28,max:.28,move:event.move});
+    }
     else if (kind === 'pulse') this.effects.push({kind:'pulse',x,y,type:event.type,life:.52,max:.52,radius:move.arena?.range||170});
     else if (kind === 'self') this.effects.push({kind:'self',x,y,type:event.type,life:.5,max:.5});
     else this.effects.push({kind:'muzzle',x:x+direction.x*20,y:y+direction.y*20-12,type:event.type,direction,life:.2,max:.2});
@@ -588,7 +601,7 @@ export class CombatRenderer {
     const reaction=record.hurtUntil>now?Math.sin((record.hurtUntil-now)/230*Math.PI)*5:0;
     let offsetX=(record.hitDirection?.x||-f.facing?.x||0)*reaction,offsetY=(record.hitDirection?.y||-f.facing?.y||0)*reaction;
     const actionPhase=activeAction?.phase,progress=activeAction?clamp(elapsed/(actionPhase==='windup'?activeAction.windup||.18:activeAction.recovery||.25),0,1):0;
-    if(activeAction){const dir=activeAction.direction||f.facing||{x:1,y:0};const lunge=activeAction.kind==='melee'?(actionPhase==='windup'?-3*progress:Math.sin(progress*Math.PI)*10):(actionPhase==='recovery'?-Math.sin(progress*Math.PI)*3:0);offsetX+=dir.x*lunge;offsetY+=dir.y*lunge;}
+    if(activeAction){const dir=activeAction.direction||f.facing||{x:1,y:0};const lunge=activeAction.kind==='melee'?(actionPhase==='windup'?-3*progress:Math.sin(progress*Math.PI)*(activeAction.move==='volttackle'||activeAction.move==='extremespeed'?18:10)):(actionPhase==='recovery'?-Math.sin(progress*Math.PI)*3:0);offsetX+=dir.x*lunge;offsetY+=dir.y*lunge;if(activeAction.move==='bodyslam'){if(actionPhase==='windup')offsetY+=progress*5;else offsetY-=Math.sin(progress*Math.PI)*29;}}
     const summon=f.deployment?.phase==='release'?clamp((f.deployment.elapsed+(now-this.lastSnapshot)/1000)/Math.max(.1,f.deployment.duration),0,1):1,faintTime=record.faintAt?(now-record.faintAt)/1000:0;
     const alpha=f.hp<=0?clamp(1-(faintTime-.6)/.5,0,1):f.dodge?.65:1;
     if(image&&metrics){
