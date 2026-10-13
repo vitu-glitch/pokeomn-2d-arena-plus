@@ -1284,6 +1284,8 @@ export class CombatRenderer {
       }
       ctx.closePath();if(fill){ctx.fillStyle=fill;ctx.fill();}
     };
+    // These already have authored hit frames in the legacy renderer; preserve them verbatim.
+    if(['fireblast','volttackle','wildcharge','flareblitz','aquajet','headsmash','bite','crunch','bugbite','leechlife','bodyslam','struggle','doubleedge','takedown','headbutt','zenheadbutt','ironhead','tackle','pound','strength','stomp','closecombat','playrough'].includes(m))return false;
     ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=fade*.88;ctx.lineCap='round';ctx.lineJoin='round';
 
     if(m==='flamethrower'||m==='ember'||m==='firepunch'||m==='firefang'){
@@ -1454,6 +1456,62 @@ export class CombatRenderer {
       for(let i=0;i<3;i++){const x=(i-1)*radius*.48,y=Math.sin(t*3+i*2)*radius*.09,r=radius*(.18+(i===1?.05:0));ctx.fillStyle=colors[i];ctx.strokeStyle='#fff';ctx.lineWidth=1;ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill();ctx.stroke();ctx.fillStyle='#fff7e6';ctx.beginPath();ctx.arc(x-r*.25,y-r*.25,r*.18,0,TAU);ctx.fill();}
       ctx.restore();return true;
     }
+    // Type-shaped hit frames for every remaining move, so no attack falls back to the same three generic arcs.
+    const moveType=this.moves(m)?.type||e.type||'Normal';
+    if(moveType==='Fire'){
+      for(let i=0;i<7;i++){const angle=i*TAU/7,reach=radius*(.62+(i%3)*.12);ctx.save();ctx.rotate(angle);
+        ctx.fillStyle=i%3===0?'#fff0b4':i%3===1?'#ffad39':'#eb4a28';ctx.beginPath();ctx.moveTo(0,0);ctx.quadraticCurveTo(reach*.4,-reach*.3,reach,-reach*.1);ctx.quadraticCurveTo(reach*.68,reach*.18,0,0);ctx.fill();ctx.restore();}
+      ctx.fillStyle='#fff6cf';ctx.beginPath();ctx.arc(0,0,radius*.17,0,TAU);ctx.fill();
+    }else if(moveType==='Water'){
+      ctx.strokeStyle='#49b9ea';ctx.lineWidth=3*(1-t)+.8;ctx.beginPath();ctx.arc(0,0,radius*.7,-2.6,.7);ctx.stroke();
+      ctx.strokeStyle='#dffbff';ctx.lineWidth=1.7;ctx.beginPath();ctx.arc(1,0,radius*.54,-2.35,.95);ctx.stroke();
+      for(let i=0;i<5;i++){const x=Math.cos(i*TAU/5)*radius*.62,y=Math.sin(i*TAU/5)*radius*.38;ctx.fillStyle=i%2?'#8adff9':'#efffff';ctx.beginPath();ctx.ellipse(x,y,2.5,3.5,-.3,0,TAU);ctx.fill();}
+    }else if(moveType==='Electric'){
+      ctx.strokeStyle='#5acafa';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(-radius*.8,radius*.2);ctx.lineTo(-radius*.42,-radius*.12);ctx.lineTo(-radius*.22,radius*.22);ctx.lineTo(radius*.08,-radius*.55);ctx.lineTo(radius*.29,-radius*.03);ctx.lineTo(radius*.8,-radius*.2);ctx.stroke();
+      ctx.strokeStyle='#fff3a0';ctx.lineWidth=2;ctx.stroke();star(0,0,radius*.18,radius*.06,4,Math.PI/4,'#fffde8');
+    }else if(moveType==='Grass'){
+      for(let i=0;i<5;i++){const angle=i*TAU/5,dist=radius*(.34+(i%2)*.2),size=radius*.23;ctx.save();ctx.translate(Math.cos(angle)*dist,Math.sin(angle)*dist*.58);ctx.rotate(angle+.4);
+        ctx.fillStyle=i%2?'#6fc653':'#c0ee7c';ctx.strokeStyle='#ecffd0';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,size);ctx.quadraticCurveTo(-size,0,0,-size);ctx.quadraticCurveTo(size,0,0,size);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();}
+      ctx.strokeStyle='#9edb69';ctx.lineWidth=1.6;ctx.beginPath();ctx.arc(0,0,radius*.45,.3,Math.PI*1.75);ctx.stroke();
+    }else if(moveType==='Ice'){
+      for(let i=0;i<7;i++){const angle=i*TAU/7,dist=radius*(.28+(i%3)*.15),size=radius*(.14+(i%2)*.05);ctx.save();ctx.translate(Math.cos(angle)*dist,Math.sin(angle)*dist*.62);ctx.rotate(angle);
+        ctx.fillStyle=i%2?'#75cdea':'#e0fbff';ctx.strokeStyle='#fff';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,-size);ctx.lineTo(size*.3,-size*.12);ctx.lineTo(size*.18,size*.8);ctx.lineTo(-size*.25,size*.3);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();}
+      ctx.strokeStyle='#fff';ctx.lineWidth=1.4;ctx.beginPath();ctx.arc(0,0,radius*.32,0,TAU);ctx.stroke();
+    }else if(moveType==='Poison'){
+      for(let i=0;i<6;i++){const x=(i-2.5)*radius*.24,y=Math.sin(i*2.1)*radius*.16,size=radius*(.12+(i%3)*.05);ctx.fillStyle=i%2?'#77439a':'#ae78c7';ctx.strokeStyle='#edc8fa';ctx.lineWidth=.8;
+        ctx.beginPath();ctx.moveTo(x-size*.65,y);ctx.quadraticCurveTo(x-size,y-size,x,y-size*1.05);ctx.quadraticCurveTo(x+size,y-size*.2,x+size*.55,y+size*.45);ctx.quadraticCurveTo(x,y+size*.7,x-size*.65,y);ctx.closePath();ctx.fill();ctx.stroke();}
+    }else if(moveType==='Ground'||moveType==='Rock'){
+      ctx.globalCompositeOperation='source-over';ctx.strokeStyle='#c7ad83';ctx.lineWidth=3*(1-t)+.8;ctx.beginPath();ctx.moveTo(-radius*.9,radius*.08);ctx.lineTo(-radius*.52,-radius*.04);ctx.lineTo(-radius*.28,radius*.36);ctx.lineTo(-radius*.03,-radius*.48);ctx.lineTo(radius*.19,radius*.08);ctx.lineTo(radius*.49,-radius*.24);ctx.lineTo(radius*.85,0);ctx.stroke();
+      for(let i=0;i<5;i++){const angle=i*TAU/5,dist=radius*(.42+(i%2)*.17);ctx.save();ctx.translate(Math.cos(angle)*dist,Math.sin(angle)*dist*.57);ctx.rotate(angle);ctx.fillStyle=i%2?'#8b7962':'#d4bc94';ctx.beginPath();ctx.moveTo(-3,-3);ctx.lineTo(2,-5);ctx.lineTo(5,1);ctx.lineTo(-1,4);ctx.closePath();ctx.fill();ctx.restore();}
+    }else if(moveType==='Psychic'){
+      for(let ring=0;ring<3;ring++){ctx.strokeStyle=ring===0?'#fff1ff':ring===1?'#e6a3e8':'#9a81e2';ctx.lineWidth=2.4-ring*.55;ctx.beginPath();ctx.ellipse(0,0,radius*(.38+ring*.21),radius*(.22+ring*.12),ring*.1,now*.002+ring*.7,now*.002+ring*.7+Math.PI*1.7);ctx.stroke();}
+      star(0,0,radius*.18,radius*.08,4,Math.PI/4,'#fff5ff');
+    }else if(moveType==='Ghost'||moveType==='Dark'){
+      ctx.strokeStyle=moveType==='Ghost'?'#a99ae9':'#665d89';ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,radius*.68,-2.3,.9);ctx.stroke();
+      ctx.strokeStyle='#ede4ff';ctx.lineWidth=1.4;ctx.beginPath();ctx.arc(1,1,radius*.46,.6,4.2);ctx.stroke();
+      for(let i=0;i<5;i++){const angle=i*TAU/5,dist=radius*(.3+(i%2)*.2);ctx.fillStyle=moveType==='Ghost'?'#bcabf8':'#51476f';ctx.beginPath();ctx.moveTo(Math.cos(angle)*dist,Math.sin(angle)*dist*.55);ctx.lineTo(Math.cos(angle+.16)*(dist+radius*.22),Math.sin(angle+.16)*(dist+radius*.22)*.55);ctx.lineTo(Math.cos(angle-.12)*(dist+radius*.1),Math.sin(angle-.12)*(dist+radius*.1)*.55);ctx.closePath();ctx.fill();}
+    }else if(moveType==='Dragon'){
+      for(let ring=0;ring<2;ring++){ctx.strokeStyle=ring?'#e68fae':'#a99be9';ctx.lineWidth=2.8-ring*.5;ctx.beginPath();ctx.ellipse(0,0,radius*(.55+ring*.2),radius*(.34+ring*.1),ring?.2:-.2,now*.002+ring,now*.002+ring+Math.PI*1.65);ctx.stroke();}
+      ctx.strokeStyle='#fff0f4';ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(-radius*.8,0);ctx.lineTo(0,-radius*.2);ctx.lineTo(radius*.8,0);ctx.stroke();
+    }else if(moveType==='Steel'){
+      for(let i=0;i<6;i++){const angle=i*TAU/6,dist=radius*(.32+(i%2)*.2),size=radius*.17;ctx.save();ctx.translate(Math.cos(angle)*dist,Math.sin(angle)*dist*.62);ctx.rotate(angle+.45);ctx.fillStyle=i%2?'#9dc5cf':'#e0eff0';ctx.strokeStyle='#fff';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,-size);ctx.lineTo(size*.55,0);ctx.lineTo(0,size);ctx.lineTo(-size*.35,size*.3);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();}
+      ctx.strokeStyle='#f3ffff';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(0,0,radius*.45,radius*.25,0,0,TAU);ctx.stroke();
+    }else if(moveType==='Fairy'){
+      ctx.strokeStyle='#f3a6dc';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(-radius*.8,radius*.12);ctx.quadraticCurveTo(0,-radius*.45,radius*.8,-radius*.02);ctx.stroke();
+      for(let i=0;i<7;i++){const a=i*TAU/7,dist=radius*(.34+(i%2)*.28),x=Math.cos(a)*dist,y=Math.sin(a)*dist*.55;star(x,y,radius*.09,radius*.04,4,a,'#fff1fa');}
+    }else if(moveType==='Bug'){
+      for(let i=0;i<6;i++){const a=i*TAU/6,dist=radius*(.34+(i%2)*.18),size=radius*.15;ctx.save();ctx.translate(Math.cos(a)*dist,Math.sin(a)*dist*.6);ctx.rotate(a+.3);ctx.fillStyle=i%2?'#8dc85b':'#d9f19a';ctx.strokeStyle='#f8ffdf';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,-size);ctx.lineTo(size*.7,0);ctx.lineTo(0,size);ctx.lineTo(-size*.5,size*.2);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();}
+    }else if(moveType==='Flying'){
+      for(let i=0;i<3;i++){ctx.save();ctx.rotate((i-1)*.22);ctx.strokeStyle=i===1?'#fff':'#bfdaf7';ctx.lineWidth=3-i*.5;ctx.beginPath();ctx.moveTo(-radius*.65,-radius*.2);ctx.quadraticCurveTo(0,-radius*.65,radius*.7,0);ctx.quadraticCurveTo(0,radius*.1,-radius*.65,-radius*.2);ctx.stroke();ctx.restore();}
+    }else{
+      // Normal/Fighting: compact contact star and directional speed lines.
+      ctx.strokeStyle='#fff4d4';ctx.lineWidth=2.1;ctx.beginPath();ctx.moveTo(-radius*.85,-radius*.12);ctx.lineTo(-radius*.3,0);ctx.lineTo(-radius*.1,-radius*.45);ctx.lineTo(radius*.12,0);ctx.lineTo(radius*.85,-radius*.08);ctx.stroke();
+      star(0,0,radius*.28,radius*.11,4,Math.PI/4,'#fff3ce');
+      for(let i=0;i<3;i++){ctx.strokeStyle='#ead6ac';ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(-radius*.72,(i-1)*radius*.18);ctx.lineTo(-radius*.3,(i-1)*radius*.18);ctx.stroke();}
+    }
+    ctx.restore();return true;
+  }
+
     ctx.restore();return false;
   }
 
