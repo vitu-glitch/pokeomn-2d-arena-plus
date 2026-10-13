@@ -571,3 +571,82 @@
   .console-selected-sprite{animation:none}
   .console-pokemon-card,.console-confirm-button{transition:none}
 }
+
+
+/* Immersive title menu: no website chrome while navigating the game */
+#app.console-menu-mode .game-home{height:100%;min-height:0;padding:clamp(13px,2.6vh,28px) clamp(18px,4.2vw,64px) 15px;gap:clamp(9px,1.5vh,16px);background:linear-gradient(180deg,#102d49b8,#0d253ee6)}
+.home-status-row{padding-bottom:10px}
+.home-facility-label{font-size:8px;letter-spacing:1.7px}
+.home-top-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px}
+.home-top-button{display:flex;align-items:center;gap:10px;min-height:34px;padding:6px 10px;background:#173a53;border:1px solid #7594a5;border-radius:4px;color:#e8eee2;text-align:left;box-shadow:0 2px 0 #061b2b80}
+.home-top-button:hover{background:#254d67;border-color:#c1d5d5}
+.home-top-button>span{font-size:7px;font-weight:900;letter-spacing:1px;color:#96b5c0}
+.home-top-button>strong{max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9px;letter-spacing:.3px;color:#f0d366}
+.home-layout{grid-template-columns:minmax(300px,.78fr) minmax(390px,1.22fr);gap:clamp(28px,5.4vw,82px);min-height:0}
+.home-main-copy{max-width:600px;padding:0}
+.home-edition{margin-bottom:15px;font-size:8px;letter-spacing:2px}
+.game-home-title{font-size:clamp(72px,8vw,116px);line-height:.78;letter-spacing:-1.7px;text-shadow:0 4px 0 #0c253d,2px 0 #0c253d,-2px 0 #0c253d}
+.game-home-title small{font-size:clamp(17px,1.8vw,24px);letter-spacing:7px;margin-bottom:8px}
+.game-home-description{max-width:425px;margin-top:18px;font-size:13px;line-height:1.62;color:#c0d0d4}
+.home-start-button{margin-top:22px;min-height:68px;padding:10px 17px;background:#efd15e;color:#19384f;border:2px solid #fff0a4;border-radius:5px;box-shadow:0 4px 0 #b39c43,0 10px 24px #051b2b55}
+.home-start-button:hover{background:#f8df7d;transform:translateY(-2px)}
+.home-start-copy small{font-size:7px;letter-spacing:1.5px;color:#837538}
+.home-start-copy strong{font-size:clamp(19px,1.7vw,24px);letter-spacing:.3px;color:#18384f}
+.home-start-ball{width:31px;height:31px;border:2px solid #24485d;background:linear-gradient(#e55c59 0 44%,#254b61 44% 55%,#f7f3e4 55%);box-shadow:inset 0 0 0 1px #fff7dc}
+.home-match-facts{margin-top:22px;gap:19px}
+.home-match-facts strong{font-family:var(--heading);font-size:28px;color:#f0d260}
+.home-match-facts span{font-size:7px;letter-spacing:1.2px;color:#a5bfca}
+.home-showcase{border:3px solid #fff6e0;border-radius:8px;box-shadow:0 5px 0 #061c2f,0 18px 35px #05172666}
+.home-showcase-top{height:43px;background:#dfe8df}
+.home-showcase-stage{height:clamp(250px,39vh,420px);background:linear-gradient(180deg,#e7ede1,#cfdfd7)}
+.home-stage-grid{background-size:30px 30px;opacity:.8}
+.home-stage-ring{border-color:#5c8d8a55}
+.home-stage-ring-one{width:59%;height:45%}
+.home-stage-ring-two{width:42%;height:32%;border-color:#719e9555}
+.home-side-pokemon{bottom:16px;width:21%;background:#fbfaef;border-radius:5px;box-shadow:0 2px 0 #b9cbc0}
+.home-side-sprite{width:clamp(55px,6.8vw,83px);height:clamp(62px,7.5vw,90px)}
+.home-featured-sprite{width:clamp(165px,19vw,235px);height:clamp(175px,23vh,250px)}
+.home-featured-info{padding:14px 17px;background:#fbfaef}
+.home-featured-info h2{font-size:31px}
+.home-featured-info small{font-size:7px}
+.home-featured-info>button{background:#e2eae0;border-color:#c4d3c5;font-size:8px}
+.home-showcase-bottom{padding:10px 15px;background:#e1e9df}
+.home-steps{gap:9px}
+.home-step{min-height:58px;padding:9px 12px;background:#163650d9;border:1px solid #7da0ad55;border-radius:4px;box-shadow:0 2px 0 #071d2f55}
+.home-step-number{width:27px;height:27px;flex-basis:27px;background:#214a64;border-radius:3px}
+.home-step strong{font-size:8px}
+.home-step small{font-size:9px}
+.home-bottom-line{padding-top:2px;font-size:8px}
+@media(max-width:1100px){
+  #app.console-menu-mode .game-home{padding-left:25px;padding-right:25px}
+  .home-layout{grid-template-columns:minmax(270px,.85fr) minmax(330px,1.15fr);gap:25px}
+  .game-home-title{font-size:clamp(64px,7.4vw,86px)}
+  .home-showcase-stage{height:clamp(220px,32vh,310px)}
+  .home-featured-sprite{width:165px;height:180px}
+  .home-side-sprite{width:60px;height:65px}
+}
+@media(max-width:740px){
+  #app.console-menu-mode .game-home{height:auto;min-height:100%;padding:14px 14px 17px;gap:14px}
+  .home-status-row{align-items:flex-start;flex-wrap:wrap;gap:10px}
+  .home-facility-label{font-size:7px;letter-spacing:.65px}
+  .home-top-actions{gap:5px}
+  .home-ready{font-size:6px}
+  .home-top-button{min-height:29px;padding:5px 7px;gap:5px}
+  .home-top-button>span{font-size:6px}
+  .home-top-button>strong{font-size:7px}
+  .home-layout{grid-template-columns:1fr;gap:16px;flex:initial}
+  .home-main-copy{max-width:none}
+  .game-home-title{font-size:clamp(55px,12vw,78px)}
+  .game-home-title small{font-size:15px;letter-spacing:5px}
+  .game-home-description{margin-top:12px;font-size:11px}
+  .home-start-button{margin-top:14px;min-height:57px}
+  .home-match-facts{margin-top:13px}
+  .home-showcase-stage{height:220px}
+  .home-featured-sprite{width:155px;height:165px}
+  .home-side-sprite{width:57px;height:60px}
+  .home-steps{gap:5px}
+  .home-step{gap:6px;padding:8px 6px}
+  .home-step small{font-size:7px}
+  .home-bottom-line{align-items:flex-start;flex-direction:column;gap:8px}
+  .home-bottom-tip{text-align:left;white-space:normal}
+}
