@@ -9,7 +9,6 @@ const ARENAS = {
   coast: { id:'coast', width:1200, height:760, obstacles:[{x:430,y:300,w:95,h:170},{x:675,y:300,w:95,h:170}] },
   ruins: { id:'ruins', width:1200, height:760, obstacles:[{x:355,y:165,w:75,h:95},{x:770,y:165,w:75,h:95},{x:355,y:500,w:75,h:95},{x:770,y:500,w:75,h:95}] },
   summit: { id:'summit', width:1200, height:760, obstacles:[{x:535,y:150,w:130,h:95},{x:535,y:515,w:130,h:95}] },
-  island: { id:'island', width:1200, height:760, obstacles:[{x:215,y:145,w:34,h:48,kind:'palm'},{x:965,y:145,w:36,h:50,kind:'palm'},{x:210,y:574,w:35,h:49,kind:'palm'},{x:965,y:572,w:36,h:50,kind:'palm'},{x:405,y:155,w:52,h:36,kind:'rock'},{x:742,y:545,w:54,h:36,kind:'rock'},{x:880,y:315,w:46,h:32,kind:'rock'},{x:283,y:437,w:45,h:32,kind:'rock'}] },
 };
 
 const SUPPORTED_ABILITIES = new Set('overgrow blaze torrent swarm hugepower purepower guts furcoat adaptability technician thickfat multiscale levitate waterabsorb voltabsorb flashfire lightningrod stormdrain motordrive sapsipper wonderguard sturdy immunity limber insomnia vitalspirit waterveil magmaarmor owntempo synchronize static flamebody poisonpoint effectspore naturalcure regenerator'.split(' '));
@@ -23,11 +22,10 @@ function collides(x,y,r,arena) { return x<r+18 || x>arena.width-r-18 || y<r+18 |
 
 function moveCircle(body, dx, dy, arena) {
   const count = Math.max(1,Math.ceil(Math.hypot(dx,dy)/8));
-  const onIslandLand=(x,y)=>arena.id!=='island'||((x-600)/(590-body.radius))**2+((y-380)/(365-body.radius))**2<=1;
   for(let step=0;step<count;step++) {
     let x = body.x+dx/count, y = body.y+dy/count;
-    if(!collides(x,body.y,body.radius,arena)&&onIslandLand(x,body.y)) body.x=x;
-    if(!collides(body.x,y,body.radius,arena)&&onIslandLand(body.x,y)) body.y=y;
+    if(!collides(x,body.y,body.radius,arena)) body.x=x;
+    if(!collides(body.x,y,body.radius,arena)) body.y=y;
   }
 }
 
