@@ -35,12 +35,12 @@ function clearLine(a,b,arena,radius=3) {
   return true;
 }
 
-function createPokemon(entry, slot, team) {
-  const species=entry.species, stats=canonicalStats(species.baseStats);
+function createPokemon(entry, slot, team, level=50) {
+  const species=entry.species, stats=canonicalStats(species.baseStats,level);
   const canonical=Dex.species.get(species.id);
   const abilityName=canonical.abilities?.['0'] || '';
   return {
-    id:`p${team}`, team, slot, species:species.id, originalSpecies:species.id, name:species.name,
+    id:`p${team}`, team, slot, level, xp:0, species:species.id, originalSpecies:species.id, name:species.name,
     sprite:species.sprite, spriteAnimated:species.spriteAnimated, types:[...species.types], originalTypes:[...species.types],
     stats, originalStats:{...stats}, hp:stats.hp, maxHp:stats.hp, stages:blankStages(),
     ability:SUPPORTED_ABILITIES.has(idOf(abilityName)) ? idOf(abilityName) : '', abilityName, abilityImplemented:SUPPORTED_ABILITIES.has(idOf(abilityName)),
@@ -54,13 +54,23 @@ function createPokemon(entry, slot, team) {
 }
 
 class Battle {
-  constructor({id,teams,arena='stadium',mode='cpu',stage=null,cpuLevel=1,random=Math.random,onFinish=()=>{}}) {
+  constructor({id,teams,arena='stadium',mode='cpu',stage=null,cpuLevel=1,random=Math.random,speciesById=null,onFinish=()=>{}}) {
     this.id=id; this.arena=ARENAS[arena] || ARENAS.stadium; this.mode=mode; this.stage=stage;
-    this.teams=teams.map((team,index)=>({name:team.name,roster:team.team.map((p,slot)=>createPokemon(p,slot,index)),active:0,input:{dx:0,dy:0,aimX:index?0:1200,aimY:380},switchCooldown:0,respawn:0,cpu:Boolean(team.cpu),aiTimer:0,attackWait:1,aiSide:index?-1:1}));
-    this.projectiles=[]; this.ppOrbs=[]; this.nextPpOrbAt=PP_ORBS.firstSpawn; this.effects=[]; this.events=[]; this.tick=0; this.time=0; this.phase='battle'; this.nextId=1; this.random=random; this.onFinish=onFinish; this.cpuLevel=cpuLevel;
-    for(let index=0;index<2;index++)this.beginDeployment(this.active(index),true);
+    this.teams=teams.map((team,index)=>({name:team.name,roster:team.team.map((p,slot)=>createPokemon(p,slot,index,mode==='battle-royale'?5:50)),active:0,input:{dx:0,dy:0,aimX:index?0:1200,aimY:380},switchCooldown:0,respawn:0,cpu:Boolean(team.cpu),aiTimer:0,attackWait:1,aiSide:index%2?-1:1}));
+    this.projectiles=[]; this.ppOrbs=[]; this.nextPpOrbAt=PP_ORBS.firstSpawn; this.effects=[]; this.events=[]; this.tick=0; this.time=0; this.phase='battle'; this.nextId=1; this.random=random; this.onFinish=onFinish; this.cpuLevel=cpuLevel;this.speciesById=speciesById||new Map();this.eliminations=teams.map(()=>0);
+    const center={x:this.arena.width/2,y:this.arena.height/2};
+    for(let index=0;index<this.teams.length;index++) {
+      const team=this.teams[index],p=this.active(index);
+      if(this.teams.length===2){p.x=index?970:230;p.y=380;p.facing={x:index?-1:1,y:0};}
+      else {const angle=-Math.PI/2+Math.PI*2*index/this.teams.length;p.x=center.x+Math.cos(angle)*470;p.y=center.y+Math.sin(angle)*290;p.facing=unit(center.x-p.x,center.y-p.y);}
+      team.input.aimX=p.x+p.facing.x*300;team.input.aimY=p.y+p.facing.y*300;
+      this.beginDeployment(p,true);
+    }
   }
-  active(team) { const t=this.teams[team]; return t.roster[t.active]; }
+  active(team) { const t=this.teams[team]; return t?.roster?.[t.active]||null; }
+  opponents(teamIndex, livingOnly=true) { return this.teams.map((team,index)=>({index,p:this.active(index)})).filter(({index,p})=>index!==teamIndex&&p&&(!livingOnly||p.hp>0)).map(item=>item.p); }
+  nearestOpponent(teamIndex, from=this.active(teamIndex)) { if(!from)return null;return this.opponents(teamIndex).sort((a,b)=>distance(from,a)-distance(from,b))[0]||null; }
+  eliminate(teamIndex, reason='eliminated') { const p=this.active(teamIndex);if(p&&p.hp>0)this.dealDamage(p,p.hp,null,null);if(this.mode==='battle-royale'){const alive=this.teams.map(t=>t.roster.some(mon=>mon.hp>0));const count=alive.filter(Boolean).length;if(count<=1)this.finish(count===1?alive.findIndex(Boolean):null,reason);} }
   event(kind,text,extra={}) { const event={id:this.nextId++,kind,text,at:this.time,...extra}; this.events.push(event); this.events=this.events.slice(-24); return event; }
   effect(kind,x,y,type,text='',life=.65) { this.effects.push({id:this.nextId++,kind,x,y,type,text,life}); }
   input(teamIndex,input) {
@@ -196,7 +206,8 @@ class Battle {
       else this.changeStages(p,move.boosts);
       return true;
     }
-    const enemy=this.active(1-teamIndex);
+    const enemy=this.nearestOpponent(teamIndex,p);
+    if(!enemy)return true;
     if(spec.kind==='target') {
       if(distance(p,enemy)>550 || !clearLine(p,enemy,this.arena)) return true;
       if(enemy.protect>0||enemy.dodge>0||enemy.transformed||p.transformed||enemy.hp<=0) return true;
@@ -206,12 +217,12 @@ class Battle {
     }
     if(spec.kind==='pulse') {
       this.effect('pulse',p.x,p.y,spec.type,'',.45);
-      if(distance(p,enemy)<=spec.range+enemy.radius && clearLine(p,enemy,this.arena)) this.hit(p,enemy,move,direction,context);
+      for(const target of this.opponents(teamIndex)) if(distance(p,target)<=spec.range+target.radius && clearLine(p,target,this.arena)) this.hit(p,target,move,direction,context);
     } else if(spec.kind==='melee') {
       moveCircle(p,direction.x*(move.priority>0?72:34),direction.y*(move.priority>0?72:34),this.arena);
       this.effect('slash',p.x+direction.x*45,p.y+direction.y*45,spec.type,'',.28);
-      const delta=unit(enemy.x-p.x,enemy.y-p.y);
-      if(distance(p,enemy)<=spec.range+enemy.radius && direction.x*delta.x+direction.y*delta.y>.35 && clearLine(p,enemy,this.arena)) this.hit(p,enemy,move,direction,context);
+      const targets=this.opponents(teamIndex).filter(target=>distance(p,target)<=spec.range+target.radius && direction.x*unit(target.x-p.x,target.y-p.y).x+direction.y*unit(target.x-p.x,target.y-p.y).y>.35 && clearLine(p,target,this.arena)).sort((a,b)=>distance(p,a)-distance(p,b));
+      if(targets.length)this.hit(p,targets[0],move,direction,context);
     } else {
       const start={x:p.x+direction.x*(p.radius+spec.radius+3),y:p.y+direction.y*(p.radius+spec.radius+3)};
       if(!clearLine(p,start,this.arena,spec.radius)||collides(start.x,start.y,spec.radius,this.arena)) return true;
@@ -283,12 +294,38 @@ class Battle {
       defender.counter=0;
     }
   }
+  refreshLevelStats(p,hpRatio=p.hp/Math.max(1,p.maxHp)) {
+    const species=this.speciesById.get(p.originalSpecies),canonical=Dex.species.get(p.originalSpecies),base=species?.baseStats||canonical?.baseStats;
+    if(!base)return;
+    const stats=canonicalStats(base,p.level);p.originalStats={...stats};p.stats={...stats};p.maxHp=stats.hp;p.hp=clamp(Math.round(hpRatio*p.maxHp),p.hp>0?1:0,p.maxHp);
+  }
+  tryEvolution(p) {
+    if(!this.speciesById.size||p.transformed)return false;
+    const canonical=Dex.species.get(p.originalSpecies),threshold=Math.min(8,Math.max(5,Number(canonical?.evoLevel)||8));
+    if(p.level<threshold)return false;
+    const nextIds=(canonical?.evos||[]).map(idOf).filter(id=>this.speciesById.has(id));
+    if(!nextIds.length)return false;
+    const nextId=nextIds[Math.floor(this.random()*nextIds.length)],species=this.speciesById.get(nextId),previousSpecies=p.species,previousName=p.name,hpRatio=p.hp/Math.max(1,p.maxHp),nextCanonical=Dex.species.get(nextId);
+    p.species=species.id;p.originalSpecies=species.id;p.name=species.name;p.sprite=species.sprite;p.spriteAnimated=species.spriteAnimated;p.types=[...species.types];p.originalTypes=[...species.types];p.transformed=false;p.originalMoves=null;
+    const stats=canonicalStats(species.baseStats,p.level);p.originalStats={...stats};p.stats={...stats};p.maxHp=stats.hp;p.hp=clamp(Math.round(hpRatio*p.maxHp),1,p.maxHp);
+    p.abilityName=nextCanonical?.abilities?.['0']||species.abilities?.['0']||'';p.ability=SUPPORTED_ABILITIES.has(idOf(p.abilityName))?idOf(p.abilityName):'';p.abilityImplemented=SUPPORTED_ABILITIES.has(idOf(p.abilityName));
+    this.event('evolution',`${previousName} evolved into ${p.name}!`,{team:p.team,sourceSpecies:previousSpecies,targetSpecies:p.species,species:p.species,x:p.x,y:p.y});this.effect('summon',p.x,p.y,p.types[0],p.name,1.2);return true;
+  }
+  awardExperience(teamIndex,amount=75) {
+    if(this.mode!=='battle-royale')return;
+    const p=this.active(teamIndex);if(!p||p.hp<=0)return;
+    if(p.transformed)this.resetTransform(p);
+    p.xp=Math.min(5700,p.xp+amount);const targetLevel=Math.min(100,5+Math.floor(p.xp/60));
+    while(p.level<targetLevel){const hpRatio=p.hp/Math.max(1,p.maxHp);p.level++;this.refreshLevelStats(p,hpRatio);this.event('levelUp',`${p.name} reached level ${p.level}!`,{team:teamIndex,level:p.level,xp:p.xp,x:p.x,y:p.y});this.tryEvolution(p);}
+    this.event('xp',`${p.name} gained ${amount} XP!`,{team:teamIndex,xp:p.xp,level:p.level,x:p.x,y:p.y});
+  }
+  eliminate(teamIndex, reason='eliminated') { const p=this.active(teamIndex);if(p&&p.hp>0)this.dealDamage(p,p.hp,null,null);if(this.mode==='battle-royale'){const alive=this.teams.map(t=>t.roster.some(mon=>mon.hp>0));const count=alive.filter(Boolean).length;if(count<=1)this.finish(count===1?alive.findIndex(Boolean):null,reason);} }
   dealDamage(p,amount,source,move,context={}) {
     if(p.hp<=0)return;
     const dealt=Math.min(p.hp,Math.max(0,Math.floor(amount)));p.hp-=dealt;
     this.effect('damage',p.x,p.y-20,move?effectiveType(move):'Normal',String(dealt),.8);
     if(dealt>0){p.hurtTime=.26;this.event('hurt',`${p.name} took ${dealt} damage.`,{team:p.team,targetSpecies:p.species,sourceSpecies:context.sourceSpecies||source?.species||null,move:move?.id||null,actionId:context.actionId||null,damage:dealt,x:p.x,y:p.y,duration:.26});}
-    if(p.hp<=0) {p.vx=0;p.vy=0;p.protect=0;p.dodge=0;p.action=null;p.deployment=null;p.attackLock=0;p.hitstun=0;this.event('faint',`${p.name} fainted!`,{team:p.team,species:p.species,targetSpecies:p.species,sourceSpecies:context.sourceSpecies||source?.species||null,x:p.x,y:p.y,duration:1.15});this.effect('faint',p.x,p.y,p.types[0],'',1.1);this.teams[p.team].respawn=1.15;}
+    if(p.hp<=0) {p.vx=0;p.vy=0;p.protect=0;p.dodge=0;p.action=null;p.deployment=null;p.attackLock=0;p.hitstun=0;this.event('faint',`${p.name} fainted!`,{team:p.team,species:p.species,targetSpecies:p.species,sourceSpecies:context.sourceSpecies||source?.species||null,x:p.x,y:p.y,duration:1.15});this.effect('faint',p.x,p.y,p.types[0],'',1.1);this.teams[p.team].respawn=1.15;if(this.mode==='battle-royale'&&source&&Number.isInteger(source.team)&&source.team!==p.team){this.eliminations[source.team]=(this.eliminations[source.team]||0)+1;this.awardExperience(source.team,75);this.event('elimination',`${this.teams[source.team].name} eliminated ${p.name}!`,{team:source.team,targetSpecies:p.species,sourceSpecies:source.species,x:p.x,y:p.y});}}
   }
   updatePokemon(p,dt,active) {
     for(const m of p.moves)m.cooldown=Math.max(0,m.cooldown-dt);
@@ -343,8 +380,8 @@ class Battle {
     this.ppOrbs=this.ppOrbs.filter(orb=>orb.life>0);
   }
   cpuInput(index) {
-    const t=this.teams[index], p=this.active(index), enemy=this.active(1-index);
-    if(p.hp<=0||enemy.hp<=0||p.deployment)return;
+    const t=this.teams[index], p=this.active(index), enemy=this.nearestOpponent(index);
+    if(p.hp<=0||!enemy||p.deployment)return;
     const hasOffense=pokemon=>pokemon.moves.some(state=>state.pp>0&&(getMove(state.id).basePower>0||['counter','mirrorcoat','transform'].includes(state.id)));
     const exhaustedOffense=!hasOffense(p);
     if(exhaustedOffense) {
@@ -395,7 +432,7 @@ class Battle {
   }
   step(dt=1/60) {
     if(this.phase!=='battle')return;dt=clamp(dt,0,1/20);this.time+=dt;this.tick++;
-    for(let teamIndex=0;teamIndex<2;teamIndex++) {
+    for(let teamIndex=0;teamIndex<this.teams.length;teamIndex++) {
       const t=this.teams[teamIndex];t.switchCooldown=Math.max(0,t.switchCooldown-dt);t.attackWait=Math.max(0,t.attackWait-dt);
       for(let slot=0;slot<t.roster.length;slot++)this.updatePokemon(t.roster[slot],dt,slot===t.active);
       let p=this.active(teamIndex);
@@ -421,30 +458,34 @@ class Battle {
       moveCircle(p,(p.vx+p.knockX)*dt,(p.vy+p.knockY)*dt,this.arena);
       p.knockX*=Math.exp(-8*dt);p.knockY*=Math.exp(-8*dt);
     }
-    const first=this.active(0),second=this.active(1),overlap=first.radius+second.radius-distance(first,second);
-    if(first.hp>0&&second.hp>0&&overlap>0) {const push=unit(second.x-first.x,second.y-first.y);moveCircle(first,-push.x*overlap/2,-push.y*overlap/2,this.arena);moveCircle(second,push.x*overlap/2,push.y*overlap/2,this.arena);}
+    for(let i=0;i<this.teams.length;i++)for(let j=i+1;j<this.teams.length;j++){const first=this.active(i),second=this.active(j);if(!first||!second||first.hp<=0||second.hp<=0)continue;const overlap=first.radius+second.radius-distance(first,second);if(overlap>0){const push=unit(second.x-first.x,second.y-first.y);moveCircle(first,-push.x*overlap/2,-push.y*overlap/2,this.arena);moveCircle(second,push.x*overlap/2,push.y*overlap/2,this.arena);}}
     this.updatePpOrbs(dt);
     for(const shot of this.projectiles) {
       shot.life-=dt;if(shot.life<=0)continue;
-      const target=this.active(1-shot.team),count=Math.max(1,Math.ceil(Math.hypot(shot.vx,shot.vy)*dt/8));
+      const targets=this.opponents(shot.team),count=Math.max(1,Math.ceil(Math.hypot(shot.vx,shot.vy)*dt/8));
       for(let i=0;i<count;i++) {
         shot.x+=shot.vx*dt/count;shot.y+=shot.vy*dt/count;
         if(collides(shot.x,shot.y,shot.radius,this.arena)){shot.life=0;this.effect('impact',shot.x,shot.y,shot.type,'',.3);break;}
-        if(target.hp>0&&distance(shot,target)<=shot.radius+target.radius){this.hit(shot.owner,target,getMove(shot.move),unit(shot.vx,shot.vy),{sourceSpecies:shot.sourceSpecies,actionId:shot.actionId});shot.life=0;this.effect('impact',shot.x,shot.y,shot.type,'',.35);break;}
+        const target=targets.filter(p=>p.hp>0&&distance(shot,p)<=shot.radius+p.radius).sort((a,b)=>distance(shot,a)-distance(shot,b))[0];
+        if(target){this.hit(shot.owner,target,getMove(shot.move),unit(shot.vx,shot.vy),{sourceSpecies:shot.sourceSpecies,actionId:shot.actionId});shot.life=0;this.effect('impact',shot.x,shot.y,shot.type,'',.35);break;}
       }
     }
     this.projectiles=this.projectiles.filter(p=>p.life>0);this.effects.forEach(e=>e.life-=dt);this.effects=this.effects.filter(e=>e.life>0).slice(-70);this.events=this.events.filter(e=>this.time-e.at<2.5);
     const alive=this.teams.map(t=>t.roster.some(p=>p.hp>0));
-    if(!alive[0]||!alive[1])this.finish(alive[0]===alive[1]?null:alive[0]?0:1,'knockout');
+    if(this.mode==='battle-royale') {
+      const survivors=alive.map((isAlive,index)=>({isAlive,index,kills:this.eliminations[index]||0,p:this.active(index)})).filter(entry=>entry.isAlive);
+      if(survivors.length<=1)this.finish(survivors.length?survivors[0].index:null,'last-survivor');
+      else if(this.time>=300){survivors.sort((a,b)=>b.kills-a.kills||b.p.hp/Math.max(1,b.p.maxHp)-a.p.hp/Math.max(1,a.p.maxHp));const a=survivors[0],b=survivors[1];this.finish(a.kills===b.kills&&Math.abs(a.p.hp/a.p.maxHp-b.p.hp/b.p.maxHp)<.001?null:a.index,'time');}
+    } else if(!alive[0]||!alive[1])this.finish(alive[0]===alive[1]?null:alive[0]?0:1,'knockout');
     else if(this.time>=300) {const health=this.teams.map(t=>t.roster.reduce((n,p)=>n+p.hp/p.maxHp,0)/t.roster.length);this.finish(Math.abs(health[0]-health[1])<.001?null:health[0]>health[1]?0:1,'time');}
   }
   finish(winner,reason='knockout') {if(this.phase!=='battle')return;this.phase='finished';this.winner=winner;this.reason=reason;this.event('result',winner===null?'Draw!':`${this.teams[winner].name} wins!`,{winner});this.onFinish({winner,reason,battle:this});}
   startMessage(selfTeam) {
-    return {type:'battleStart',id:this.id,mode:this.mode,stage:this.stage,arena:this.arena,selfTeam,rules:{level:50,ivs:31,evs:0,nature:'neutral',turnSeconds:4,limitSeconds:300,arenaDamageScale:ARENA_DAMAGE_SCALE,freezeSeconds:[.8,1.8],facingBasedAttacks:true,deployment:DEPLOYMENT,spawnShield:DEPLOYMENT.grace,ppOrbs:PP_ORBS},teams:this.teams.map(t=>({name:t.name,pokemon:t.roster.map(p=>({species:p.species,name:p.name,types:p.types,hp:p.hp,maxHp:p.maxHp,sprite:p.sprite,spriteAnimated:p.spriteAnimated,ability:p.abilityName,abilityImplemented:p.abilityImplemented,moves:p.moves.map(m=>({...m,name:getMove(m.id).name,type:effectiveType(getMove(m.id)),category:getMove(m.id).category,cooldown:moveSpec(getMove(m.id)).cooldown,windup:moveSpec(getMove(m.id)).windup,recovery:moveSpec(getMove(m.id)).recovery,attackKind:moveSpec(getMove(m.id)).kind}))}))}))};
+    return {type:'battleStart',id:this.id,mode:this.mode,stage:this.stage,arena:this.arena,selfTeam,rules:{level:50,ivs:31,evs:0,nature:'neutral',turnSeconds:4,limitSeconds:300,arenaDamageScale:ARENA_DAMAGE_SCALE,freezeSeconds:[.8,1.8],facingBasedAttacks:true,deployment:DEPLOYMENT,spawnShield:DEPLOYMENT.grace,ppOrbs:PP_ORBS},teams:this.teams.map(t=>({name:t.name,pokemon:t.roster.map(p=>({species:p.species,name:p.name,types:p.types,level:p.level,xp:p.xp,hp:p.hp,maxHp:p.maxHp,sprite:p.sprite,spriteAnimated:p.spriteAnimated,ability:p.abilityName,abilityImplemented:p.abilityImplemented,moves:p.moves.map(m=>({...m,name:getMove(m.id).name,type:effectiveType(getMove(m.id)),category:getMove(m.id).category,cooldown:moveSpec(getMove(m.id)).cooldown,windup:moveSpec(getMove(m.id)).windup,recovery:moveSpec(getMove(m.id)).recovery,attackKind:moveSpec(getMove(m.id)).kind}))}))}))};
   }
   snapshot() {
     return {type:'state',id:this.id,tick:this.tick,time:this.time,phase:this.phase,arenaId:this.arena.id,
-      fighters:this.teams.map((t,i)=>{const p=this.active(i);return {id:p.id,team:p.team,slot:p.slot,species:p.species,name:p.name,x:p.x,y:p.y,vx:p.vx,vy:p.vy,radius:p.radius,facing:p.facing,hp:p.hp,maxHp:p.maxHp,types:p.types,status:p.status,statusTime:p.statusTime,protect:p.protect,dodge:p.dodge,dodgeCooldown:p.dodgeCooldown,stages:p.stages,cooldowns:p.moves.map(m=>m.pp<=0?p.struggleCooldown:m.cooldown),pp:p.moves.map(m=>m.pp),maxPp:p.moves.map(m=>m.maxPp),moves:p.moves.map(m=>m.id),switchCooldown:t.switchCooldown,ability:p.abilityName,abilityImplemented:p.abilityImplemented,confusion:p.confusion,counter:p.counter,action:p.action?{...p.action,direction:{...p.action.direction}}:null,deployment:p.deployment?{...p.deployment}:null,hitstun:p.hitstun,hurtTime:p.hurtTime,freezeImmunity:p.freezeImmunity};}),
+      remaining:this.teams.filter(t=>t.roster.some(p=>p.hp>0)).length,eliminations:[...this.eliminations],fighters:this.teams.map((t,i)=>{const p=this.active(i);return {id:p.id,team:p.team,slot:p.slot,species:p.species,name:p.name,level:p.level,xp:p.xp,x:p.x,y:p.y,vx:p.vx,vy:p.vy,radius:p.radius,facing:p.facing,hp:p.hp,maxHp:p.maxHp,types:p.types,status:p.status,statusTime:p.statusTime,protect:p.protect,dodge:p.dodge,dodgeCooldown:p.dodgeCooldown,stages:p.stages,cooldowns:p.moves.map(m=>m.pp<=0?p.struggleCooldown:m.cooldown),pp:p.moves.map(m=>m.pp),maxPp:p.moves.map(m=>m.maxPp),moves:p.moves.map(m=>m.id),switchCooldown:t.switchCooldown,ability:p.abilityName,abilityImplemented:p.abilityImplemented,confusion:p.confusion,counter:p.counter,action:p.action?{...p.action,direction:{...p.action.direction}}:null,deployment:p.deployment?{...p.deployment}:null,hitstun:p.hitstun,hurtTime:p.hurtTime,freezeImmunity:p.freezeImmunity};}),
       benches:this.teams.map(t=>t.roster.map(p=>({species:p.species,name:p.name,hp:p.hp,maxHp:p.maxHp,status:p.status}))),
       projectiles:this.projectiles.map(({owner,...s})=>s),ppOrbs:this.ppOrbs.map(orb=>({...orb})),effects:this.effects,events:this.events};
   }
