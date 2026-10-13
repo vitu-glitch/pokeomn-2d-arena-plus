@@ -179,9 +179,14 @@ async function startServer({port=0,host='127.0.0.1',rootDir=path.join(__dirname,
           const starterId=selected[0].species.id;
           const candidates=catalog.species.filter(species=>species.id!==starterId&&Array.isArray(species.moves)&&species.moves.length>0);
           for(let i=candidates.length-1;i>0;i--){const j=crypto.randomInt(i+1);[candidates[i],candidates[j]]=[candidates[j],candidates[i]];}
-          const rivals=candidates.slice(0,11);
+          const rivals=[];
+          for(const species of candidates){
+            try{const team=cpuTeam([species.id]);rivals.push({name:royaleNames[rivals.length%royaleNames.length]+' '+String(rivals.length+1).padStart(2,'0'),team,cpu:true});}
+            catch{ /* Skip catalog entries without a legal supported moveset. */ }
+            if(rivals.length===11)break;
+          }
           if(rivals.length<5)throw new Error('Not enough Pokémon data to build a Battle Royale.');
-          const teamSpecs=[{name:player.name,team:selected},...rivals.map((species,index)=>({name:royaleNames[index%royaleNames.length]+' '+String(index+1).padStart(2,'0'),team:cpuTeam([species.id]),cpu:true}))];
+          const teamSpecs=[{name:player.name,team:selected},...rivals];
           launch([player],teamSpecs,{mode:'battle-royale',arena:ARENAS[message.arena]?message.arena:'forest',cpuLevel:4});
         }
         else if(message.type==='input') {
