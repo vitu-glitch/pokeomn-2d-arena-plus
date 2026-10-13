@@ -1512,9 +1512,6 @@ export class CombatRenderer {
     ctx.restore();return true;
   }
 
-    ctx.restore();return false;
-  }
-
   drawParticles(dt) {
     const ctx=this.ctx;
     for(let i=this.particles.length-1;i>=0;i--){const p=this.particles[i];p.life-=dt;if(p.life<=0){this.particles.splice(i,1);continue;}p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=Math.exp(-dt*4);p.vy*=Math.exp(-dt*4);ctx.globalAlpha=p.life/p.max;ctx.fillStyle=tint(p.type);ctx.fillRect(p.x-p.size/2,p.y-p.size/2,p.size,p.size);}
