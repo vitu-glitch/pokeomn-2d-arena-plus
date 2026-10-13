@@ -53,6 +53,20 @@ function createPokemon(entry, slot, team, level=50) {
   };
 }
 
+function evolutionMoveScore(move, types) {
+  if (!move) return -Infinity;
+  if (move.category === 'Status') {
+    if (move.heal) return 58;
+    if (move.self?.boosts || move.boosts) return 45;
+    return 12;
+  }
+  const power = Number(move.basePower) || 0;
+  const accuracy = typeof move.accuracy === 'number' ? clamp(move.accuracy, 30, 100) / 100 : 1;
+  const balancedPower = Math.min(100, power) - Math.max(0, power - 100) * 1.5;
+  const stab = (types || []).includes(effectiveType(move)) ? 15 : 0;
+  return balancedPower * accuracy + stab + (move.secondaries?.length ? 4 : 0) + (move.drain ? 5 : 0) - (move.recoil ? 8 : 0);
+}
+
 class Battle {
   constructor({id,teams,arena='stadium',mode='cpu',stage=null,cpuLevel=1,random=Math.random,speciesById=null,onFinish=()=>{}}) {
     this.id=id; this.arena=ARENAS[arena] || ARENAS.stadium; this.mode=mode; this.stage=stage;
@@ -346,6 +360,59 @@ class Battle {
     this.event('evolutionStart',previousName+' is evolving!',{team:p.team,sourceSpecies:previousSpecies,targetSpecies:nextId,species:nextId,x:p.x,y:p.y,duration:p.evolution.duration});
     return true;
   }
+  upgradeEvolutionMoves(p, species) {
+    const allowedIds = [...new Set([...(species.learnset || []), ...(species.moves || [])].map(idOf))];
+    const available = new Map();
+    for (const id of allowedIds) {
+      const move = getMove(id);
+      if (move && move.id !== 'struggle') available.set(move.id, move);
+    }
+    if (!available.size) return [];
+
+    const slots = (p.moves || []).slice(0, 4).map((entry, index) => ({
+      index, entry: { ...entry }, move: available.get(idOf(entry.id)) || null,
+    }));
+    while (slots.length < 4) slots.push({ index: slots.length, entry: null, move: null });
+
+    const used = new Set(slots.filter(slot => slot.move).map(slot => slot.move.id));
+    const candidates = [...available.values()]
+      .filter(move => move.category !== 'Status' && (move.basePower || 0) >= 35)
+      .sort((a, b) => evolutionMoveScore(b, species.types) - evolutionMoveScore(a, species.types) || a.name.localeCompare(b.name));
+    const fallbackCandidates = [...available.values()]
+      .sort((a, b) => evolutionMoveScore(b, species.types) - evolutionMoveScore(a, species.types) || a.name.localeCompare(b.name));
+    const learned = [];
+    const assign = (slot, move) => {
+      if (slot.move) used.delete(slot.move.id);
+      slot.move = move;
+      slot.entry = { id: move.id, pp: move.pp, maxPp: move.pp, cooldown: 0 };
+      used.add(move.id);
+      learned.push({ id: move.id, name: move.name });
+    };
+
+    // If this evolution cannot use an old move, replace it with a legal move immediately.
+    for (const slot of slots.filter(item => !item.move)) {
+      const candidate = candidates.find(move => !used.has(move.id))
+        || fallbackCandidates.find(move => !used.has(move.id));
+      if (candidate) assign(slot, candidate);
+    }
+
+    // Each evolution can teach up to two stronger attacks, while keeping useful healing/buff moves.
+    let upgrades = 0;
+    while (upgrades < 2) {
+      const weakest = slots
+        .filter(slot => slot.move && !(slot.move.category === 'Status' && (slot.move.heal || slot.move.self?.boosts || slot.move.boosts)))
+        .sort((a, b) => evolutionMoveScore(a.move, species.types) - evolutionMoveScore(b.move, species.types) || b.index - a.index)[0];
+      if (!weakest) break;
+      const weakestScore = evolutionMoveScore(weakest.move, species.types);
+      const candidate = candidates.find(move => !used.has(move.id) && evolutionMoveScore(move, species.types) >= weakestScore + 12);
+      if (!candidate) break;
+      assign(weakest, candidate);
+      upgrades++;
+    }
+
+    p.moves = slots.filter(slot => slot.move && slot.entry).map(slot => slot.entry).slice(0, 4);
+    return learned;
+  }
   finishEvolution(p) {
     const transition=p.evolution;if(!transition)return false;
     const species=this.speciesById.get(transition.toSpecies);
@@ -354,11 +421,13 @@ class Battle {
     p.evolution=null;p.species=species.id;p.originalSpecies=species.id;
     p.nextEvolutionLevel=(nextCanonical?.evos||[]).map(idOf).some(id=>this.speciesById.has(id))?p.level+2:null;
     p.name=species.name;p.sprite=species.sprite;p.spriteAnimated=species.spriteAnimated;p.types=[...species.types];p.originalTypes=[...species.types];p.transformed=false;p.originalMoves=null;
+    const learnedMoves=this.upgradeEvolutionMoves(p,species);
     const raw=canonicalStats(species.baseStats,p.level),hp=Math.round(raw.hp*(p.healthScale||1)),stats={...raw,hp};
     p.originalStats={...stats};p.stats={...stats};p.maxHp=hp;p.hp=p.maxHp;
     p.abilityName=nextCanonical?.abilities?.['0']||species.abilities?.['0']||'';p.ability=SUPPORTED_ABILITIES.has(idOf(p.abilityName))?idOf(p.abilityName):'';p.abilityImplemented=SUPPORTED_ABILITIES.has(idOf(p.abilityName));
     p.status=null;p.statusTime=0;p.toxicCounter=0;p.confusion=0;p.flinch=0;p.hitstun=0;p.hurtTime=0;p.action=null;p.attackLock=0;p.castLock=0;p.vx=0;p.vy=0;p.knockX=0;p.knockY=0;
-    this.event('evolution',previousName+' evolved into '+p.name+' and recovered all HP!',{team:p.team,sourceSpecies:previousSpecies,targetSpecies:p.species,species:p.species,x:p.x,y:p.y});
+    const learnedSummary=learnedMoves.length?` Learned ${learnedMoves.map(move=>move.name).join(' & ')}.`:'';
+    this.event('evolution',p.name+' evolved!'+learnedSummary+' Full HP restored!',{team:p.team,sourceSpecies:previousSpecies,targetSpecies:p.species,species:p.species,learnedMoves:learnedMoves.map(move=>move.id),x:p.x,y:p.y});
     this.effect('summon',p.x,p.y,p.types[0],p.name,1.2);return true;
   }
   updateEvolution(p,dt) {
