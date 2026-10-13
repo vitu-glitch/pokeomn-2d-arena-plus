@@ -184,7 +184,7 @@ export class CombatRenderer {
 
   drawIslandTree(obstacle) {
     const ctx=this.ctx,{x,y,w,h}=obstacle;
-    ctx.save();ctx.translate(x,y);
+    ctx.save();
     ctx.fillStyle='#163d3355';ctx.beginPath();ctx.ellipse(w/2,h-2,w*.62,6,0,0,TAU);ctx.fill();
     if(obstacle.kind==='palm'){
       ctx.strokeStyle='#795332';ctx.lineWidth=5;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(w*.48,h-3);ctx.quadraticCurveTo(w*.36,h*.63,w*.55,h*.26);ctx.stroke();
