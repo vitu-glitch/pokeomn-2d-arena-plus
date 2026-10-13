@@ -338,8 +338,8 @@ class Battle {
     if(p.level<threshold)return false;
     const nextIds=(canonical?.evos||[]).map(idOf).filter(id=>this.speciesById.has(id));
     if(!nextIds.length)return false;
-    const nextId=nextIds[Math.floor(this.random()*nextIds.length)],species=this.speciesById.get(nextId),previousSpecies=p.species,previousName=p.name,hpRatio=p.hp/Math.max(1,p.maxHp),nextCanonical=Dex.species.get(nextId);
-    p.species=species.id;p.originalSpecies=species.id;p.nextEvolutionLevel=(nextCanonical?.evos||[]).some(id=>this.speciesById.has(id))?p.level+2:null;p.name=species.name;p.sprite=species.sprite;p.spriteAnimated=species.spriteAnimated;p.types=[...species.types];p.originalTypes=[...species.types];p.transformed=false;p.originalMoves=null;
+    const nextId=nextIds[Math.floor(this.random()*nextIds.length)],species=this.speciesById.get(nextId),previousSpecies=p.species,previousName=p.name,nextCanonical=Dex.species.get(nextId);
+    p.species=species.id;p.originalSpecies=species.id;p.nextEvolutionLevel=(nextCanonical?.evos||[]).map(idOf).some(id=>this.speciesById.has(id))?p.level+2:null;p.name=species.name;p.sprite=species.sprite;p.spriteAnimated=species.spriteAnimated;p.types=[...species.types];p.originalTypes=[...species.types];p.transformed=false;p.originalMoves=null;
     const raw=canonicalStats(species.baseStats,p.level),hp=Math.round(raw.hp*(p.healthScale||1)),stats={...raw,hp};p.originalStats={...stats};p.stats={...stats};p.maxHp=hp;p.hp=p.maxHp;
     p.abilityName=nextCanonical?.abilities?.['0']||species.abilities?.['0']||'';p.ability=SUPPORTED_ABILITIES.has(idOf(p.abilityName))?idOf(p.abilityName):'';p.abilityImplemented=SUPPORTED_ABILITIES.has(idOf(p.abilityName));
     this.event('evolution',`${previousName} evolved into ${p.name} and recovered all HP!`,{team:p.team,sourceSpecies:previousSpecies,targetSpecies:p.species,species:p.species,x:p.x,y:p.y});this.effect('summon',p.x,p.y,p.types[0],p.name,1.2);return true;
