@@ -268,7 +268,7 @@ class Battle {
       this.effect('pulse',p.x,p.y,spec.type,'',pulseLife,{move:move.id,direction:{...direction}});
       for(const target of this.opponents(teamIndex)) if(distance(p,target)<=spec.range+target.radius && clearLine(p,target,this.arena)) this.hit(p,target,move,direction,context);
     } else if(spec.kind==='melee') {
-      const dashByMove={volttackle:112,wildcharge:92,flareblitz:86,aquajet:72,quickattack:86,extremespeed:122,doubleedge:70,takedown:58,bodyslam:54,struggle:48,zenheadbutt:48,headbutt:38,ironhead:32,dragonclaw:30,closecombat:28,playrough:32,leafblade:28,slash:28};
+      const dashByMove={volttackle:112,wildcharge:92,flareblitz:86,bravebird:98,headsmash:84,aquajet:72,quickattack:86,extremespeed:122,doubleedge:70,takedown:58,bodyslam:54,struggle:48,zenheadbutt:48,headbutt:38,ironhead:32,dragonclaw:30,closecombat:28,playrough:32,leafblade:28,slash:28};
       const targetBefore=this.nearestOpponent(teamIndex,p),distanceBefore=targetBefore?distance(p,targetBefore):Infinity,dashMax=dashByMove[move.id];
       const travel=dashMax?(targetBefore?clamp(distanceBefore-Math.max(42,(targetBefore.radius||24)+20),0,dashMax):dashMax):(move.priority>0?72:34);
       if(releaseEvent)releaseEvent.dashDistance=travel;
