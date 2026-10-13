@@ -70,7 +70,6 @@ class Battle {
   active(team) { const t=this.teams[team]; return t?.roster?.[t.active]||null; }
   opponents(teamIndex, livingOnly=true) { return this.teams.map((team,index)=>({index,p:this.active(index)})).filter(({index,p})=>index!==teamIndex&&p&&(!livingOnly||p.hp>0)).map(item=>item.p); }
   nearestOpponent(teamIndex, from=this.active(teamIndex)) { if(!from)return null;return this.opponents(teamIndex).sort((a,b)=>distance(from,a)-distance(from,b))[0]||null; }
-  eliminate(teamIndex, reason='eliminated') { const p=this.active(teamIndex);if(p&&p.hp>0)this.dealDamage(p,p.hp,null,null);if(this.mode==='battle-royale'){const alive=this.teams.map(t=>t.roster.some(mon=>mon.hp>0));const count=alive.filter(Boolean).length;if(count<=1)this.finish(count===1?alive.findIndex(Boolean):null,reason);} }
   event(kind,text,extra={}) { const event={id:this.nextId++,kind,text,at:this.time,...extra}; this.events.push(event); this.events=this.events.slice(-24); return event; }
   effect(kind,x,y,type,text='',life=.65) { this.effects.push({id:this.nextId++,kind,x,y,type,text,life}); }
   input(teamIndex,input) {
