@@ -43,3 +43,7 @@
 .royale-summary .field{margin-top:13px}
 @media(max-width:950px){.royale-layout{grid-template-columns:minmax(0,1fr) 270px}.royale-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-width:700px){.royale-layout{grid-template-columns:1fr}.royale-summary{position:static;order:-1}.royale-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+
+.br-xp{display:flex;flex-direction:column;gap:5px;margin-top:7px;font-size:9px;letter-spacing:.06em;color:var(--muted,#a5b1c2)}
+.br-xp>i{display:block;height:5px;border-radius:5px;overflow:hidden;background:#ffffff18}
+.br-xp>i>b{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#79d9a7,#e6d28e);transition:width .2s}
