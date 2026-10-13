@@ -20,3 +20,6 @@ codigo-extraido/**/assets/
 **/*.dll
 **/*.exe
 **/*.map
+# Keep OAuth client secrets out of Git
+codigo-extraido/.env
+**/.env
