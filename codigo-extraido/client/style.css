@@ -307,3 +307,267 @@
   .intro-screen h1,.intro-screen .intro-game-title{animation:none}
   .home-start-button{transition:none}
 }
+
+
+/* Console-style game interface: partner selection + battle command deck */
+#app.console-menu-mode{background:#102943}
+#app.console-menu-mode .topbar,
+#app.console-menu-mode .footer{display:none!important}
+#app.console-menu-mode #main{height:100%;min-height:0;overflow:auto;scrollbar-color:#7695a4 #17344b}
+.console-select-page{position:relative;width:100%;max-width:none;min-height:100%;margin:0;padding:clamp(18px,2.7vh,32px) clamp(18px,4.1vw,62px) 22px;color:#eaf0e8;background:radial-gradient(ellipse at 81% 20%,#244b64 0,transparent 34%),linear-gradient(135deg,#153650 0%,#102b45 53%,#0e253e 100%);isolation:isolate}
+.console-select-page:before{content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;opacity:.14;background-image:linear-gradient(#a8c1cc 1px,transparent 1px),linear-gradient(90deg,#a8c1cc 1px,transparent 1px);background-size:48px 48px;mask-image:linear-gradient(120deg,#000,transparent 75%)}
+.console-nav-row{display:flex;align-items:center;gap:22px;min-height:28px;padding-bottom:13px;border-bottom:1px solid #8ba9b43d}
+.console-back{display:flex;align-items:center;gap:9px;flex:0 0 auto;font-size:9px;letter-spacing:1.2px;font-weight:900;color:#e4ebdd;padding:8px 11px;border:1px solid #7994a33d;border-radius:4px;background:#173a53}
+.console-back span{font-size:15px;color:#efcc5b}
+.console-back:hover{background:#244c66;border-color:#7da4b8}
+.console-breadcrumb{display:flex;gap:8px;align-items:center;min-width:0;font-size:8px;font-weight:800;letter-spacing:1.4px;color:#90aebd;white-space:nowrap}
+.console-breadcrumb i{font-style:normal;color:#d3b755}
+.console-breadcrumb b{color:#f4d66a}
+.console-step{margin-left:auto;display:flex;align-items:center;gap:7px;font-size:8px;letter-spacing:.9px;color:#7897aa;white-space:nowrap}
+.console-step>span:first-child{display:grid;place-items:center;width:23px;height:23px;background:#eacb5d;color:#173650;border-radius:4px;font-size:10px;font-weight:900}
+.console-step i{display:grid;place-items:center;width:23px;height:23px;border:1px solid #65879b;border-radius:4px;color:#d5e0dc;font-style:normal;font-weight:900}
+.console-select-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;padding:23px 0 19px}
+.console-eyebrow{display:flex;align-items:center;gap:8px;margin-bottom:8px;color:#f0ce5c;font-size:8px;font-weight:900;letter-spacing:2px}
+.console-eyebrow i{width:7px;height:7px;background:#e45c58;border:1px solid #ffb9a5;border-radius:50%;box-shadow:0 0 0 3px #e45c5820}
+.console-eyebrow span{color:#88a7b9}
+.console-select-heading h1{font-family:var(--heading);font-size:clamp(35px,4vw,53px);line-height:.96;letter-spacing:.2px;color:#f4f2e4;font-weight:900}
+.console-select-heading p{margin-top:9px;color:#afc4cd;font-size:12px;line-height:1.45}
+.console-match-mark{display:flex;flex-direction:column;align-items:flex-end;flex:0 0 auto;padding:0 0 3px 18px;border-left:2px solid #e7c95b}
+.console-match-mark span{font-size:8px;font-weight:900;letter-spacing:2px;color:#b9ccd2}
+.console-match-mark strong{font-family:var(--heading);font-size:25px;letter-spacing:1.5px;line-height:1;color:#f0d05c}
+.console-match-mark small{margin-top:5px;font-size:7px;font-weight:800;letter-spacing:1px;color:#8ba8b6}
+.console-select-layout{display:grid;grid-template-columns:minmax(0,1.58fr) minmax(315px,.78fr);gap:17px;align-items:stretch}
+.console-roster-panel,.console-dossier{min-width:0;overflow:hidden;background:#ecefe4;color:#233f54;border:2px solid #fff9e9;border-radius:8px;box-shadow:0 5px 0 #091b2c6e,0 12px 30px #071b2c30}
+.console-roster-panel{height:clamp(420px,59vh,625px);display:flex;flex-direction:column}
+.console-panel-heading{min-height:59px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 15px;background:#dfe8df;border-bottom:1px solid #c8d5c9}
+.console-panel-heading>div{display:flex;align-items:center;gap:11px}
+.console-panel-index{display:grid;place-items:center;width:28px;height:28px;background:#234a62;color:#f2d05f;border-radius:4px;font-family:var(--heading);font-size:18px;font-weight:900}
+.console-panel-heading strong{display:block;font-size:10px;font-weight:900;letter-spacing:1.3px;color:#213e53}
+.console-panel-heading small{display:block;margin-top:3px;color:#748c96;font-size:7px;font-weight:900;letter-spacing:1.1px}
+.console-live-count{display:flex;align-items:center;gap:6px;color:#587d70;font-size:8px;letter-spacing:.4px;font-weight:900;white-space:nowrap}
+.console-live-count i{width:6px;height:6px;border-radius:50%;background:#68a17f}
+.console-roster-tools{display:flex;align-items:center;gap:12px;padding:10px 13px;background:#f5f4e9;border-bottom:1px solid #d2dbd0}
+.console-search{display:flex;align-items:center;gap:9px;min-width:0;flex:1;height:37px;padding:0 10px;background:#fffef5;border:1px solid #c6d4d0;border-radius:4px}
+.console-search>span{font-size:24px;color:#527b8c;line-height:1}
+.console-search input{width:100%;min-width:0;height:100%;padding:0;color:#203c52;background:transparent;border:0;border-radius:0;font-size:11px;outline:0}
+.console-search input::placeholder{color:#91a1a4}
+.console-search kbd{display:grid;place-items:center;min-width:20px;height:21px;border:1px solid #c4d0cb;border-bottom-width:2px;border-radius:3px;color:#78909a;background:#f1f0e5;font-size:10px}
+.console-roster-hint{display:flex;align-items:center;gap:7px;color:#759091;font-size:7px;font-weight:900;letter-spacing:1px;white-space:nowrap}
+.console-roster-hint span{color:#de6458;font-size:14px}
+.console-roster-grid{flex:1;min-height:0;overflow:auto;scrollbar-width:thin;scrollbar-color:#95aaa7 #e7ebe1;background:#e9ede4;padding:0 11px 11px}
+.console-roster-count{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 -1px 8px;padding:8px 3px 7px;background:#e9ede4;border-bottom:1px solid #cfd9d0;color:#7a9198;font-size:7px;font-weight:900;letter-spacing:1.2px}
+.console-roster-count>b{font-size:10px;color:#28485e;letter-spacing:.1px}
+.console-roster-count small{font-size:7px;color:#80979c;letter-spacing:.7px}
+.console-pokemon-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px;padding:0}
+.console-pokemon-card{position:relative;display:flex;min-width:0;min-height:139px;flex-direction:column;align-items:center;justify-content:flex-start;overflow:hidden;padding:22px 5px 7px;border:1px solid #c7d3cb;border-bottom:3px solid var(--card-type,#86b77a);border-radius:5px;background:#f8f8ef;color:#203e54;text-align:center;box-shadow:0 2px 0 #bdcbc1}
+.console-pokemon-card:before{content:"";position:absolute;inset:0 0 auto;height:3px;background:var(--card-type,#86b77a);opacity:.85}
+.console-pokemon-card:hover{transform:translateY(-2px);border-color:#88a69a;background:#fffef7}
+.console-pokemon-card.chosen{border:2px solid #d5b83f;border-bottom:4px solid #d5b83f;padding:21px 4px 6px;background:#fffde9;box-shadow:0 0 0 2px #e9d77c40,0 3px 0 #b6a54b}
+.console-card-order{position:absolute;left:7px;top:5px;color:#879a9b;font-size:7px;font-weight:900;letter-spacing:.5px}
+.console-pokemon-card .dex{position:absolute;top:6px;right:6px;left:auto;color:#8b9d9f;font-size:7px;font-weight:800;letter-spacing:.1px}
+.console-card-art{display:grid;place-items:center;width:100%;height:65px;margin:0 0 3px;background:radial-gradient(ellipse at 50% 77%,color-mix(in srgb,var(--card-type,#89b67e) 19%,transparent),transparent 66%);border-radius:4px}
+.console-card-sprite{display:block;width:77px;max-width:100%;height:65px;object-fit:contain;image-rendering:pixelated;filter:drop-shadow(0 2px 0 #233c4b13)}
+.console-pokemon-card>strong{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--heading);font-size:16px;line-height:1.05;font-weight:900;color:#25445b}
+.console-card-types{display:flex;justify-content:center;gap:3px;flex-wrap:wrap;margin-top:4px;min-height:13px}
+.console-card-types i{padding:2px 4px;border:1px solid color-mix(in srgb,var(--type,#9ab7a8) 52%,#d9e0d6);border-radius:2px;background:color-mix(in srgb,var(--type,#9ab7a8) 18%,#f7f6e9);color:#456175;font-style:normal;font-size:6px;font-weight:900;letter-spacing:.3px;text-transform:uppercase}
+.console-card-check{display:block;min-height:11px;margin-top:auto;padding-top:5px;color:#8da0a0;font-size:6px;font-weight:900;letter-spacing:.55px}
+.console-pokemon-card.chosen .console-card-check{color:#a1841c}
+.console-pokemon-card.chosen .console-card-check:before{content:"";display:inline-block;width:5px;height:5px;margin-right:4px;border-radius:50%;background:#c4a72e}
+.console-empty-state{margin:20px 4px;padding:22px;text-align:center;color:#6d8994;background:#f8f8ef;border:1px dashed #b7c9c2;border-radius:5px;font-size:12px}
+.console-load-more{display:block;margin:12px auto 2px;padding:10px 15px;color:#24465b!important;border-color:#b8c9c3!important;background:#f7f8ed!important;font-size:8px!important;letter-spacing:1px}
+.console-roster-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 13px;background:#dfe7dd;border-top:1px solid #c4d2c8;color:#6f8994;font-size:7px;font-weight:900;letter-spacing:.8px}
+.console-roster-foot>span:last-child{display:flex;align-items:center;gap:4px;white-space:nowrap}
+.console-roster-foot kbd,.console-footer-controls kbd{display:inline-grid;place-items:center;min-width:17px;height:17px;padding:0 4px;border:1px solid #b8c8c7;border-bottom-width:2px;border-radius:3px;background:#f9f8ed;color:#3d6173;font-size:8px;font-weight:900}
+.console-roster-foot b{color:#d05d54}
+.console-dossier{height:clamp(420px,59vh,625px);overflow:auto;scrollbar-width:thin;scrollbar-color:#91aaa5 #e8ede2;background:#f5f4e8}
+.console-dossier-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;height:43px;padding:0 14px;background:#234b63;color:#edf0df;font-size:8px;font-weight:900;letter-spacing:1.4px}
+.console-file-stamp{padding:4px 6px;border:1px solid #92acb6;color:#e7cd60;font-size:7px;letter-spacing:1px}
+.console-selected-stage{position:relative;display:flex;align-items:center;justify-content:center;height:clamp(150px,21vh,220px);overflow:hidden;background:linear-gradient(180deg,#e8eee2 0%,#dbe6df 100%);border-bottom:1px solid #cbd7cd;isolation:isolate}
+.console-selected-stage:after{content:"";position:absolute;z-index:-1;bottom:16px;width:44%;height:16px;border-radius:50%;background:#244e6026}
+.console-stage-grid{position:absolute;inset:0;z-index:-1;background-image:linear-gradient(#6f9a9c19 1px,transparent 1px),linear-gradient(90deg,#6f9a9c19 1px,transparent 1px);background-size:24px 24px;mask-image:linear-gradient(to bottom,#000,transparent 95%)}
+.console-stage-circle{position:absolute;left:50%;top:57%;border:1px solid color-mix(in srgb,var(--starter-type,#8dbd88) 42%,#f8f8ec);border-radius:50%;transform:translate(-50%,-50%)}
+.console-stage-circle-a{width:55%;aspect-ratio:2.4}
+.console-stage-circle-b{width:39%;aspect-ratio:2.4;border-style:dashed}
+.console-selected-number{position:absolute;left:13px;top:11px;color:#81989a;font-size:8px;font-weight:900;letter-spacing:1.3px}
+.console-selected-sprite{position:relative;z-index:1;width:clamp(135px,15vw,190px);height:clamp(135px,20vh,210px);object-fit:contain;image-rendering:pixelated;filter:drop-shadow(0 4px 1px #34576c19);animation:console-partner-appear .22s ease-out}
+.console-stage-caption{position:absolute;right:12px;bottom:9px;color:#6e8b94;font-size:7px;font-weight:900;letter-spacing:1.1px}
+@keyframes console-partner-appear{from{opacity:.4;transform:translateY(7px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+.console-selected-name{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 15px 5px}
+.console-selected-name small{display:block;margin-bottom:3px;color:#83999a;font-size:7px;font-weight:900;letter-spacing:1.2px}
+.console-selected-name h2{font-family:var(--heading);font-size:31px;line-height:1;color:#193c55;font-weight:900}
+.console-selected-badge{display:flex;align-items:center;gap:4px;padding:5px 7px;border-radius:3px;border:1px solid #c8d6bf;background:#e5eedf;color:#5f956c;font-size:12px;font-weight:900}
+.console-selected-badge span{font-size:7px;letter-spacing:.7px}
+.console-selected-types{display:flex;gap:5px;padding:7px 15px 10px}
+.console-selected-types .type-chip{padding:4px 8px;border:1px solid #c8d2c8;border-radius:3px;color:#38576a;font-size:8px;font-weight:900;letter-spacing:.7px;box-shadow:none}
+.console-dossier-divider{display:flex;align-items:center;justify-content:space-between;padding:7px 15px;border-top:1px solid #d6dfd4;border-bottom:1px solid #d6dfd4;background:#e8ede2;color:#708992;font-size:7px;font-weight:900;letter-spacing:1.2px}
+.console-dossier-divider b{color:#21445b;font-size:10px;letter-spacing:0}
+.console-stat-list{display:grid;gap:5px;padding:9px 15px 8px}
+.console-stat-row{display:grid;grid-template-columns:65px minmax(0,1fr) 24px;align-items:center;gap:8px;color:#68818d;font-size:7px;font-weight:900;letter-spacing:.7px}
+.console-stat-row>i{display:block;height:5px;overflow:hidden;border-radius:5px;background:#d9e1d8}
+.console-stat-row>i>b{display:block;height:100%;border-radius:5px;background:#79a98a;box-shadow:inset -2px 0 #3c775b;transition:width .25s}
+.console-stat-row>strong{text-align:right;font-size:9px;color:#284c61;letter-spacing:0}
+.console-selected-note{display:flex;align-items:flex-start;gap:9px;margin:2px 13px 10px;padding:9px;background:#e8eee3;border-left:3px solid #dfc252;border-radius:2px}
+.console-note-icon{display:grid;place-items:center;width:20px;height:20px;flex:0 0 20px;border-radius:50%;background:#f8e8a3;color:#7e732f;font-size:11px}
+.console-selected-note b{display:block;color:#355d6b;font-size:7px;letter-spacing:1px}
+.console-selected-note small{display:block;margin-top:3px;color:#78909a;font-size:8px;line-height:1.4}
+.console-arena-select{display:grid;grid-template-columns:83px minmax(0,1fr);align-items:center;gap:10px;padding:0 13px 10px}
+.console-arena-select label{color:#718a93;font-size:7px;font-weight:900;letter-spacing:1px}
+.console-arena-select select{width:100%;min-width:0;height:34px;padding:0 10px;border:1px solid #c1d1c9;border-radius:3px;background:#fffef4;color:#27485c;font-size:10px;font-weight:700}
+.console-confirm-button{display:flex;align-items:center;gap:10px;width:calc(100% - 26px);min-height:53px;margin:0 13px;padding:8px 12px;background:#edcf58;color:#1f3f54;border:2px solid #f9e99d;border-radius:4px;box-shadow:0 3px 0 #b29c42;font-family:var(--body);text-align:left}
+.console-confirm-button:hover{background:#f6df7b;transform:translateY(-1px)}
+.console-confirm-ball{position:relative;display:block;width:29px;height:29px;flex:0 0 29px;overflow:hidden;border:2px solid #254960;border-radius:50%;background:linear-gradient(#e55f5c 0 45%,#294c61 45% 54%,#f8f6e9 54%);box-shadow:inset 0 0 0 1px #f8f4df}
+.console-confirm-ball:after{content:"";position:absolute;left:8px;top:8px;width:9px;height:9px;border:2px solid #294c61;border-radius:50%;background:#f8f4df}
+.console-confirm-button>span:nth-child(2){display:flex;min-width:0;flex:1;flex-direction:column;gap:3px}
+.console-confirm-button small{font-size:7px;font-weight:900;letter-spacing:1.4px;color:#746a34}
+.console-confirm-button strong{font-family:var(--heading);font-size:20px;line-height:1;color:#17384f;letter-spacing:.6px}
+.console-confirm-button>b{font-size:22px}
+.console-detail-footer{display:flex;align-items:center;justify-content:center;gap:5px;flex-wrap:wrap;padding:9px 10px 11px;color:#84969a;font-size:6px;font-weight:900;letter-spacing:.7px}
+.console-detail-footer i{color:#d45f54;font-style:normal}
+.console-selection-footer{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-top:14px}
+.console-selection-footer>div:first-child{display:flex;align-items:center;gap:9px;color:#dce6df}
+.console-step-dot{display:grid;place-items:center;width:25px;height:25px;border:1px solid #8fa6a7;border-radius:4px;color:#f1d05e;font-size:11px;font-weight:900}
+.console-selection-footer b{display:block;font-size:8px;letter-spacing:1px}
+.console-selection-footer small{display:block;margin-top:3px;color:#95afbb;font-size:8px}
+.console-footer-controls{display:flex;align-items:center;gap:6px;color:#9eb6bf;font-size:7px;font-weight:900;letter-spacing:.8px;white-space:nowrap}
+.console-footer-controls>span{color:#e7ca5b}
+.console-footer-controls kbd{background:#193b54;border-color:#65899c;color:#ecf0e5}
+.console-select-page .type-chip{background-color:color-mix(in srgb,var(--type,#a4b4a2) 22%,#f7f6e9);color:#35556a;border-color:color-mix(in srgb,var(--type,#a4b4a2) 48%,#d0d9ce)}
+
+/* Turn the real-time battle controls into a clear, console-like command panel */
+.battle-top{background:linear-gradient(#153650f7,#112d47f3);border-bottom:2px solid #d5c65d55;color:#eef0df}
+.battle-top .icon-button{border:1px solid #89a8b3;border-radius:4px;background:#1d435d;color:#f3e8b5}
+.battle-title b{font-size:16px;letter-spacing:1.4px;color:#f0d35f}
+.battle-title span{color:#b2c8ce}
+.battle-clock{color:#f5f0dc;text-shadow:0 2px #19374a}
+.battle-connection{color:#9ed5a4}
+.lock-on-button{border-radius:4px!important;border:1px solid #7493a3!important;background:#1a3d56!important;color:#eaf0e5!important}
+.lock-on-button.active{background:#e8cc5d!important;color:#19384d!important;border-color:#fff0a0!important}
+.fighter-hud,.enemy-hud{border:2px solid #fff9e9;border-radius:8px;background:linear-gradient(160deg,#f6f4e7,#e7eee2);box-shadow:0 4px 0 #112b43a6,0 9px 22px #091c2b35}
+.fighter-hud{border-left:5px solid #e0c653}
+.enemy-hud{border-right:5px solid #e56a64}
+.hud-trainer{color:#708b95;font-size:8px;font-weight:900;letter-spacing:1px}
+.hud-name{color:#1d4056;font-size:24px}
+.hud-hp{height:9px;background:#cbd8ce;border:1px solid #b9cbc1;border-radius:2px;margin-top:8px}
+.hud-hp i{background:#67a777;box-shadow:inset 0 1px #9dd39a}
+.enemy-hud .hud-hp i{background:#df6d69;box-shadow:inset 0 1px #f4a197}
+.hud-values{color:#55727f;font-size:8px;font-weight:800}
+.status-tag{color:#a88021}
+.hud-ability{color:#7b929a;font-size:8px}
+.br-xp{color:#577a82}
+.br-xp>i{background:#cbd9d2}
+.br-xp>i>b{background:#e6c84d}
+.battle-bottom{left:clamp(12px,2vw,28px);right:clamp(12px,2vw,28px);bottom:34px;gap:11px;align-items:stretch;padding:10px 11px;background:linear-gradient(180deg,#f1f2e6,#e1eade);border:3px solid #fff8e8;border-bottom-color:#d5e0d3;border-radius:10px;box-shadow:0 5px 0 #102b43b5,0 12px 32px #06182584}
+.moves-hud{gap:7px;align-items:stretch;max-width:850px}
+#battle[data-mode="battle-royale"] .moves-hud{max-width:1000px}
+.move-card{height:88px;border:1px solid #c2d0c9;border-top:4px solid var(--type,#92b7ac);border-radius:5px;background:#faf9ef!important;color:#24465a;box-shadow:0 2px 0 #c6d2c7,0 5px 10px #2344580b;padding:8px 9px;transition:transform .12s,border-color .12s,background .12s;isolation:isolate}
+.move-card:before{content:"";position:absolute;inset:0;background:linear-gradient(115deg,color-mix(in srgb,var(--type,#a8bba6) 13%,transparent),transparent 68%);z-index:-1;pointer-events:none}
+.move-card:hover:not(:disabled){transform:translateY(-2px);border-color:#7b9d94!important;background:#fffef5!important}
+.move-card.cooling{filter:saturate(.75)}
+.move-card.depleted{opacity:.62}
+.move-card:disabled{opacity:.52}
+.move-card .key{min-width:23px;height:22px;border:1px solid #c8d5cb;border-bottom-width:2px;border-radius:4px;background:#eaf0e5;color:#33576a;font-size:9px;box-shadow:none}
+.move-card .move-type{display:block;margin:6px 0 2px;color:#6c8b91;font-size:7px;font-weight:900;letter-spacing:1.1px}
+.move-card .move-name{display:block;position:relative;z-index:2;color:#1c3e55;font-family:var(--heading);font-size:clamp(15px,1.25vw,21px);font-weight:900;letter-spacing:.15px;line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.move-card .move-pp{display:block;position:relative;z-index:2;margin-top:4px;color:#6a858d;font-size:7px;font-weight:900;letter-spacing:.2px;line-height:1.15}
+.move-pp-meter{display:block;position:relative;z-index:2;margin-top:4px;width:100%;height:3px;background:#d5e0d6;overflow:hidden;border-radius:3px}
+.move-pp-meter i{display:block;width:100%;height:100%}
+.move-pp-meter b{display:block;height:100%;background:#75ae88;border-radius:3px;transition:width .15s}
+.move-card.depleted .move-pp-meter b{background:#df8076}
+.move-card.struggle{border-top-color:#c3a577!important;background:#f4eddd!important}
+.move-card.struggle .move-name{color:#815e2d}
+.m1-card{border-top-color:#d5b953!important;background:#f4f0dc!important}
+.m1-card .key{color:#846b20!important;background:#faedba!important;border-color:#e3d28d!important}
+.m1-card .move-name{color:#5b4d28!important;font-size:17px!important}
+.m1-card .move-pp{color:#8f8050;font-size:7px}
+.team-hud{gap:6px;align-self:end}
+.team-chip{width:62px;height:73px;background:#f7f6e9;border:1px solid #bdcec5;border-bottom:3px solid #a5c5ae;border-radius:5px;padding:3px 4px 7px;box-shadow:0 2px 0 #c4d1c7}
+.team-chip.active{border-color:#d3b950;border-bottom-color:#d3b950;background:#fff8d7;box-shadow:0 0 0 2px #e5d46d55}
+.team-chip.fainted{filter:grayscale(1);opacity:.48}
+.team-chip img{height:47px;width:49px;object-fit:contain;image-rendering:pixelated}
+.team-chip>span{height:4px;background:#d2ddd3;border-radius:4px}
+.team-chip i{background:#6bad7c}
+.dodge-hud{width:68px;align-self:center;color:#4f7180}
+.dodge-hud kbd{display:grid;place-items:center;min-height:35px;padding:5px 4px;background:#234b63;border:2px solid #c4d3cd;border-radius:5px;box-shadow:0 3px 0 #132e45;color:#f4d45f;font-size:10px;font-weight:900}
+.dodge-hud>span{margin-top:7px;color:#4e717e;font-size:7px;font-weight:900;letter-spacing:1.3px}
+.dodge-track{height:4px;margin-top:6px;background:#c8d8ce;border-radius:4px}
+.dodge-track i{background:#d5b746}
+.battle-hints{bottom:9px;color:#edf0df;font-weight:800;font-size:7px;letter-spacing:.8px;text-shadow:0 1px 4px #071a2b}
+.battle-hints span{color:#f0d05d}
+@media(max-width:1250px){
+  .console-pokemon-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .console-pokemon-card{min-height:128px}
+  .console-card-art{height:57px}
+  .console-card-sprite{height:57px}
+  .console-selected-stage{height:clamp(140px,19vh,185px)}
+  .console-selected-sprite{height:clamp(128px,18vh,180px)}
+  .console-roster-panel,.console-dossier{height:clamp(415px,59vh,590px)}
+  .console-select-page{padding-left:25px;padding-right:25px}
+}
+@media(max-width:980px){
+  .console-select-heading{padding-top:18px}
+  .console-select-layout{grid-template-columns:minmax(0,1.2fr) minmax(280px,.8fr);gap:12px}
+  .console-roster-foot{font-size:6px}
+  .console-roster-foot>span:first-child{display:none}
+  .console-panel-heading{padding:9px}
+  .console-live-count{font-size:7px}
+  .console-roster-tools{padding:8px;gap:5px}
+  .console-roster-hint{display:none}
+  .console-pokemon-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+  .console-pokemon-card{min-height:121px}
+  .console-card-art{height:52px}
+  .console-card-sprite{height:52px}
+  .console-footer-controls{font-size:6px}
+  .console-selected-name h2{font-size:26px}
+  .battle-bottom{left:10px;right:10px;gap:6px;padding:8px}
+  .team-chip{width:48px;height:63px}
+  .team-chip img{width:39px;height:40px}
+  .dodge-hud{width:49px}
+  .move-card{padding:7px 5px}
+  .move-card .move-name{font-size:15px}
+  .move-card .move-pp{font-size:6px}
+}
+@media(max-width:740px){
+  #app.console-menu-mode #main{overflow:auto}
+  .console-select-page{padding:14px 12px 20px}
+  .console-nav-row{gap:9px;flex-wrap:wrap;padding-bottom:9px}
+  .console-back{font-size:8px;padding:6px}
+  .console-breadcrumb{font-size:6px;letter-spacing:.5px;gap:4px}
+  .console-step{gap:4px;font-size:6px}
+  .console-step>span:first-child,.console-step i{width:18px;height:18px}
+  .console-select-heading{padding:17px 0 14px}
+  .console-select-heading h1{font-size:34px}
+  .console-select-heading p{max-width:280px;font-size:10px}
+  .console-match-mark{padding-left:8px}
+  .console-match-mark strong{font-size:20px}
+  .console-match-mark small{font-size:6px}
+  .console-select-layout{grid-template-columns:1fr;gap:12px}
+  .console-roster-panel,.console-dossier{height:auto;min-height:390px}
+  .console-roster-panel{height:510px}
+  .console-pokemon-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .console-pokemon-card{min-height:126px}
+  .console-dossier{max-height:none}
+  .console-selected-stage{height:200px}
+  .console-selected-sprite{width:165px;height:190px}
+  .console-selection-footer{align-items:flex-start;flex-direction:column;gap:9px}
+  .console-footer-controls{font-size:7px}
+  .battle-top{padding:0 10px;gap:7px}
+  .battle-title b{font-size:12px}
+  .battle-clock{display:none}
+  .lock-on-button{font-size:7px!important;margin-left:auto!important;margin-right:0!important}
+  .battle-bottom{display:flex;flex-direction:column;left:8px;right:8px;bottom:36px;gap:7px;padding:7px}
+  .team-hud{justify-content:center}
+  .moves-hud,#battle[data-mode="battle-royale"] .moves-hud{width:100%;max-width:none;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+  .move-card{height:74px}
+  .move-card .move-type{margin-top:3px}
+  .move-card .move-name{font-size:14px}
+  .move-card .move-pp{font-size:6px}
+  .dodge-hud{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;text-align:center}
+  .dodge-hud kbd{min-height:27px;min-width:45px}
+  .dodge-hud>span{margin:0}
+  .dodge-track{width:65px;margin:0}
+  .battle-hints{display:none}
+}
+@media(prefers-reduced-motion:reduce){
+  .console-selected-sprite{animation:none}
+  .console-pokemon-card,.console-confirm-button{transition:none}
+}
