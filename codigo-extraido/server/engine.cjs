@@ -374,7 +374,7 @@ class Battle {
     while(p.level<targetLevel){const hpRatio=p.hp/Math.max(1,p.maxHp);p.level++;this.refreshLevelStats(p,hpRatio);this.event('levelUp',`${p.name} reached level ${p.level}!`,{team:teamIndex,level:p.level,xp:p.xp,x:p.x,y:p.y});this.tryEvolution(p);}
     this.event('xp',`${p.name} gained ${amount} XP!`,{team:teamIndex,xp:p.xp,level:p.level,x:p.x,y:p.y,silent:!notify});
   }
-  eliminate(teamIndex, reason='eliminated') { const p=this.active(teamIndex);if(p&&p.hp>0)this.dealDamage(p,p.hp,null,null);if(this.mode==='battle-royale'){const alive=this.teams.map(t=>t.roster.some(mon=>mon.hp>0));const count=alive.filter(Boolean).length;if(count<=1)this.finish(count===1?alive.findIndex(Boolean):null,reason);} }
+  eliminate(teamIndex, reason='eliminated') { const p=this.active(teamIndex);if(p?.evolution)p.evolution=null;if(p&&p.hp>0)this.dealDamage(p,p.hp,null,null);if(this.mode==='battle-royale'){const alive=this.teams.map(t=>t.roster.some(mon=>mon.hp>0));const count=alive.filter(Boolean).length;if(count<=1)this.finish(count===1?alive.findIndex(Boolean):null,reason);} }
   dealDamage(p,amount,source,move,context={}) {
     if(p.hp<=0||p.evolution)return 0;
     const dealt=Math.min(p.hp,Math.max(0,Math.floor(amount)));p.hp-=dealt;
