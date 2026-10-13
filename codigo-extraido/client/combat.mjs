@@ -345,6 +345,7 @@ export class CombatRenderer {
 
     const animationDt = now < this.hitStopUntil ? 0 : dt;
     for(const f of fighters)this.drawCharacter(f,this.interpolate(f,now),now,animationDt,selfTeam);
+    for(const f of fighters)if(f.evolution)this.drawEvolution(f,this.interpolate(f,now),now);
     for(const f of fighters)this.drawDeployment(f,this.interpolate(f,now),now);
     this.drawRecalls(dt);
     for(const f of fighters)this.drawStatus(f,this.interpolate(f,now),now);
@@ -359,6 +360,33 @@ export class CombatRenderer {
     const enemy=fighters.find(f=>f.team!==selfTeam);
     if(enemy&&enemy.hp>0)this.drawOffscreenOpponent(enemy);
     for(const [id,record] of this.characters)if(!fighters.some(f=>f.id===id)){record.element?.remove();this.characters.delete(id);}
+  }
+
+  drawEvolution(f,pos,now) {
+    const transition=f.evolution;if(!transition)return;
+    const ctx=this.ctx,progress=clamp((transition.elapsed+clamp((now-this.lastSnapshot)/1000,0,.08))/Math.max(.1,transition.duration),0,1);
+    const pulse=.5+.5*Math.sin(now/72),radius=26+progress*25;
+    ctx.save();ctx.translate(pos.x,pos.y-19);ctx.globalCompositeOperation='lighter';
+    ctx.globalAlpha=.22+.28*pulse;
+    const glow=ctx.createRadialGradient(0,0,3,0,0,48+progress*22);
+    glow.addColorStop(0,'rgba(255,255,240,.92)');glow.addColorStop(.4,'rgba(255,229,142,.34)');glow.addColorStop(1,'rgba(255,211,110,0)');
+    ctx.fillStyle=glow;ctx.fillRect(-85,-90,170,140);
+    ctx.globalAlpha=.45+.45*pulse;ctx.strokeStyle='#fff6c9';ctx.lineWidth=2.1;
+    for(let ring=0;ring<3;ring++){
+      ctx.save();ctx.rotate((now/650)*(ring%2?-.75:1)+ring*2.1);
+      ctx.beginPath();ctx.ellipse(0,0,radius+ring*7,9+ring*4,0,0,TAU);ctx.stroke();ctx.restore();
+    }
+    ctx.globalAlpha=.55+.4*pulse;ctx.fillStyle='#fff9db';ctx.beginPath();ctx.arc(0,0,8+progress*8+pulse*2,0,TAU);ctx.fill();
+    for(let i=0;i<12;i++){
+      const angle=i*TAU/12+now/420*(i%2?1:-1),orbit=radius+Math.sin(now/150+i)*6;
+      const x=Math.cos(angle)*orbit,y=Math.sin(angle)*orbit*.62;
+      ctx.globalAlpha=.45+.5*((Math.sin(now/95+i*1.7)+1)/2);
+      ctx.fillStyle=i%3===0?'#fff':'#ffe78c';ctx.fillRect(x-2,y-2,4,4);
+    }
+    if(progress>.72&&Math.floor(now/90)%2===0){
+      ctx.globalAlpha=.24+.2*pulse;ctx.fillStyle='#fff';ctx.beginPath();ctx.ellipse(0,-1,24+progress*14,29+progress*14,0,0,TAU);ctx.fill();
+    }
+    ctx.restore();
   }
 
   drawTargetLock(f,pos,now) {
@@ -545,6 +573,7 @@ export class CombatRenderer {
       if(f.deployment?.phase==='release'&&summon<.7)ctx.filter='brightness(4) saturate(0)';
       else if(record.hurtUntil>now&&Math.floor(now/55)%2===0)ctx.filter='brightness(1.65)';
       else if(f.status==='frz')ctx.filter='saturate(.35) brightness(1.15)';
+      else if(f.evolution){const phase=clamp(f.evolution.elapsed/Math.max(.1,f.evolution.duration),0,1),flash=Math.abs(Math.sin(phase*Math.PI*10));ctx.filter='brightness('+(1+flash*2.8)+') saturate('+(0.8+flash*1.1)+')';}
       const anchor=a.anchors?.[row]?.[frame] || [a.frameWidth/2,a.frameHeight/2+metrics.footOffset];
       ctx.drawImage(image,frame*a.frameWidth,row*a.frameHeight,a.frameWidth,a.frameHeight,-anchor[0],-anchor[1],a.frameWidth,a.frameHeight);
       ctx.restore();
