@@ -90,7 +90,10 @@ async function startServer({port=0,host='127.0.0.1',rootDir=path.join(__dirname,
   function leave(player,reason='left') {
     if(player.battle) {
       const entry=battles.get(player.battle);
-      if(entry && entry.battle.phase==='battle')entry.battle.finish(1-player.team,reason);
+      if(entry && entry.battle.phase==='battle'){
+        if(entry.battle.mode==='battle-royale')entry.battle.eliminate(player.team,reason);
+        else entry.battle.finish(1-player.team,reason);
+      }
       if(entry){entry.players=entry.players.filter(id=>id!==player.id);if(entry.players.length===0)battles.delete(entry.battle.id);}
       player.battle=null;
     }
@@ -99,7 +102,7 @@ async function startServer({port=0,host='127.0.0.1',rootDir=path.join(__dirname,
   function launch(memberPlayers,teamSpecs,{mode,stage=null,arena='stadium',cpuLevel=1}) {
     const id=crypto.randomBytes(10).toString('hex');
     const entry={battle:null,players:memberPlayers.map(p=>p.id),finishedAt:0};
-    const battle=new Battle({id,teams:teamSpecs,mode,stage,arena,cpuLevel,onFinish:({winner,reason})=>{
+    const battle=new Battle({id,teams:teamSpecs,mode,stage,arena,cpuLevel,speciesById:catalog.speciesById,onFinish:({winner,reason})=>{
       entry.finishedAt=Date.now();
       let progress=null,saveError=null;
       if(mode==='campaign') {
@@ -118,6 +121,7 @@ async function startServer({port=0,host='127.0.0.1',rootDir=path.join(__dirname,
     return validateTeam(ids.map(id=>({species:id})),catalog);
   }
   const quickRoster=['charizard','blastoise','venusaur','pikachu','gengar','lucario','gardevoir','dragonite','scizor','sylveon','arcanine','sceptile','swampert','greninja','mimikyu','garchomp'];
+  const royaleNames=['Misty','Brock','Rival','Nova','Iris','Ash','Cynthia','Raihan','Dawn','Blaze','Storm','Ace'];
   wss.on('connection',(ws,req)=>{
     const id=crypto.randomBytes(12).toString('hex');
     const player={id,ws,name:'Trainer',room:null,battle:null,team:0,local:hostConnection(req),lastSeq:-1,rateAt:Date.now(),rateCount:0,alive:true,admissionTimer:null};
@@ -167,6 +171,18 @@ async function startServer({port=0,host='127.0.0.1',rootDir=path.join(__dirname,
           leave(player);
           const ids=stage?.team||[...quickRoster].sort(()=>crypto.randomInt(1000)/1000-.5).slice(0,selected.length);
           launch([player],[{name:player.name,team:selected},{name:stage?.name||'CPU Trainer',team:cpuTeam(ids),cpu:true}],{mode:stage?'campaign':'cpu',stage:stage?.id||null,arena:stage?.arena||(ARENAS[message.arena]?message.arena:'stadium'),cpuLevel:stage?STAGES.indexOf(stage)+1:4});
+        }
+        else if(message.type==='startBattleRoyale') {
+          if(!player.local)throw new Error('Battle Royale starts on the host computer.');
+          const selected=validateTeam([message.pokemon],catalog);
+          leave(player);
+          const starterId=selected[0].species.id;
+          const candidates=catalog.species.filter(species=>species.id!==starterId&&Array.isArray(species.moves)&&species.moves.length>0);
+          for(let i=candidates.length-1;i>0;i--){const j=crypto.randomInt(i+1);[candidates[i],candidates[j]]=[candidates[j],candidates[i]];}
+          const rivals=candidates.slice(0,11);
+          if(rivals.length<5)throw new Error('Not enough Pokémon data to build a Battle Royale.');
+          const teamSpecs=[{name:player.name,team:selected},...rivals.map((species,index)=>({name:royaleNames[index%royaleNames.length]+' '+String(index+1).padStart(2,'0'),team:cpuTeam([species.id]),cpu:true}))];
+          launch([player],teamSpecs,{mode:'battle-royale',arena:ARENAS[message.arena]?message.arena:'forest',cpuLevel:4});
         }
         else if(message.type==='input') {
           const entry=battles.get(player.battle);if(!entry||entry.battle.mode==='demo')return;
