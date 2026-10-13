@@ -320,7 +320,7 @@ export class CombatRenderer {
     return {x:mix(previous.x,f.x,t),y:mix(previous.y,f.y,t)};
   }
 
-  render(battle,state,now,dt,{selfTeam,aimX,aimY,resultShown}) {
+  render(battle,state,now,dt,{selfTeam,aimX,aimY,resultShown,lockTargetTeam}) {
     if (!battle) return;
     if (this.battle?.id!==battle.id) this.reset(battle);
     this.battle=battle;
