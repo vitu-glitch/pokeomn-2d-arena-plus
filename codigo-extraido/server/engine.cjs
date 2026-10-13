@@ -40,7 +40,7 @@ function createPokemon(entry, slot, team, level=50) {
   const canonical=Dex.species.get(species.id);
   const abilityName=canonical.abilities?.['0'] || '';
   return {
-    id:`p${team}`, team, slot, level, xp:0, species:species.id, originalSpecies:species.id, name:species.name,
+    id:`p${team}`, team, slot, level, xp:0, nextEvolutionLevel:8, species:species.id, originalSpecies:species.id, name:species.name,
     sprite:species.sprite, spriteAnimated:species.spriteAnimated, types:[...species.types], originalTypes:[...species.types],
     stats, originalStats:{...stats}, hp:stats.hp, maxHp:stats.hp, stages:blankStages(),
     ability:SUPPORTED_ABILITIES.has(idOf(abilityName)) ? idOf(abilityName) : '', abilityName, abilityImplemented:SUPPORTED_ABILITIES.has(idOf(abilityName)),
@@ -260,6 +260,7 @@ class Battle {
     if(result.effectiveness===0) {this.effect('immune',defender.x,defender.y,effectiveType(move),'Immune',.7);return;}
     let amount=result.damage;
     if(attacker.flashFire&&effectiveType(move)==='Fire') amount=Math.floor(amount*1.5);
+    if(this.mode==='battle-royale')amount=Math.min(amount,Math.max(1,Math.floor(defender.maxHp*0.28)));
     if(defender.ability==='sturdy'&&defender.hp===defender.maxHp&&amount>=defender.hp) amount=defender.hp-1;
     const dealt=Math.min(defender.hp,amount);
     this.dealDamage(defender,amount,attacker,move,context);
@@ -300,17 +301,17 @@ class Battle {
   }
   tryEvolution(p) {
     if(!this.speciesById.size||p.transformed)return false;
-    const canonical=Dex.species.get(p.originalSpecies),threshold=Math.min(8,Math.max(5,Number(canonical?.evoLevel)||8));
+    const canonical=Dex.species.get(p.originalSpecies),threshold=p.nextEvolutionLevel||Math.min(8,Math.max(5,Number(canonical?.evoLevel)||8));
     if(p.level<threshold)return false;
     const nextIds=(canonical?.evos||[]).map(idOf).filter(id=>this.speciesById.has(id));
     if(!nextIds.length)return false;
     const nextId=nextIds[Math.floor(this.random()*nextIds.length)],species=this.speciesById.get(nextId),previousSpecies=p.species,previousName=p.name,hpRatio=p.hp/Math.max(1,p.maxHp),nextCanonical=Dex.species.get(nextId);
-    p.species=species.id;p.originalSpecies=species.id;p.name=species.name;p.sprite=species.sprite;p.spriteAnimated=species.spriteAnimated;p.types=[...species.types];p.originalTypes=[...species.types];p.transformed=false;p.originalMoves=null;
+    p.species=species.id;p.originalSpecies=species.id;p.nextEvolutionLevel=p.level+3;p.name=species.name;p.sprite=species.sprite;p.spriteAnimated=species.spriteAnimated;p.types=[...species.types];p.originalTypes=[...species.types];p.transformed=false;p.originalMoves=null;
     const stats=canonicalStats(species.baseStats,p.level);p.originalStats={...stats};p.stats={...stats};p.maxHp=stats.hp;p.hp=clamp(Math.round(hpRatio*p.maxHp),1,p.maxHp);
     p.abilityName=nextCanonical?.abilities?.['0']||species.abilities?.['0']||'';p.ability=SUPPORTED_ABILITIES.has(idOf(p.abilityName))?idOf(p.abilityName):'';p.abilityImplemented=SUPPORTED_ABILITIES.has(idOf(p.abilityName));
     this.event('evolution',`${previousName} evolved into ${p.name}!`,{team:p.team,sourceSpecies:previousSpecies,targetSpecies:p.species,species:p.species,x:p.x,y:p.y});this.effect('summon',p.x,p.y,p.types[0],p.name,1.2);return true;
   }
-  awardExperience(teamIndex,amount=75) {
+  awardExperience(teamIndex,amount=60) {
     if(this.mode!=='battle-royale')return;
     const p=this.active(teamIndex);if(!p||p.hp<=0)return;
     if(p.transformed)this.resetTransform(p);
@@ -324,7 +325,7 @@ class Battle {
     const dealt=Math.min(p.hp,Math.max(0,Math.floor(amount)));p.hp-=dealt;
     this.effect('damage',p.x,p.y-20,move?effectiveType(move):'Normal',String(dealt),.8);
     if(dealt>0){p.hurtTime=.26;this.event('hurt',`${p.name} took ${dealt} damage.`,{team:p.team,targetSpecies:p.species,sourceSpecies:context.sourceSpecies||source?.species||null,move:move?.id||null,actionId:context.actionId||null,damage:dealt,x:p.x,y:p.y,duration:.26});}
-    if(p.hp<=0) {p.vx=0;p.vy=0;p.protect=0;p.dodge=0;p.action=null;p.deployment=null;p.attackLock=0;p.hitstun=0;this.event('faint',`${p.name} fainted!`,{team:p.team,species:p.species,targetSpecies:p.species,sourceSpecies:context.sourceSpecies||source?.species||null,x:p.x,y:p.y,duration:1.15});this.effect('faint',p.x,p.y,p.types[0],'',1.1);this.teams[p.team].respawn=1.15;if(this.mode==='battle-royale'&&source&&Number.isInteger(source.team)&&source.team!==p.team){this.eliminations[source.team]=(this.eliminations[source.team]||0)+1;this.awardExperience(source.team,75);this.event('elimination',`${this.teams[source.team].name} eliminated ${p.name}!`,{team:source.team,targetSpecies:p.species,sourceSpecies:source.species,x:p.x,y:p.y});}}
+    if(p.hp<=0) {p.vx=0;p.vy=0;p.protect=0;p.dodge=0;p.action=null;p.deployment=null;p.attackLock=0;p.hitstun=0;this.event('faint',`${p.name} fainted!`,{team:p.team,species:p.species,targetSpecies:p.species,sourceSpecies:context.sourceSpecies||source?.species||null,x:p.x,y:p.y,duration:1.15});this.effect('faint',p.x,p.y,p.types[0],'',1.1);this.teams[p.team].respawn=1.15;if(this.mode==='battle-royale'&&source&&Number.isInteger(source.team)&&source.team!==p.team){this.eliminations[source.team]=(this.eliminations[source.team]||0)+1;this.awardExperience(source.team,60);this.event('elimination',`${this.teams[source.team].name} eliminated ${p.name}!`,{team:source.team,targetSpecies:p.species,sourceSpecies:source.species,x:p.x,y:p.y});}}
   }
   updatePokemon(p,dt,active) {
     for(const m of p.moves)m.cooldown=Math.max(0,m.cooldown-dt);
