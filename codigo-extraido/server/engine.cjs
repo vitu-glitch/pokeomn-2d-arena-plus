@@ -267,7 +267,7 @@ class Battle {
     } else if(spec.kind==='melee') {
       const dashByMove={volttackle:112,wildcharge:92,flareblitz:86,aquajet:72,quickattack:86,extremespeed:122,doubleedge:70,takedown:58,bodyslam:54,struggle:48,zenheadbutt:48,headbutt:38,ironhead:32,dragonclaw:30,closecombat:28,playrough:32,leafblade:28,slash:28};
       const targetBefore=this.nearestOpponent(teamIndex,p),distanceBefore=targetBefore?distance(p,targetBefore):Infinity,dashMax=dashByMove[move.id];
-      const travel=dashMax?(targetBefore?clamp(distanceBefore-Math.max(42,(targetBefore.radius||24)+20),8,dashMax):dashMax):(move.priority>0?72:34);
+      const travel=dashMax?(targetBefore?clamp(distanceBefore-Math.max(42,(targetBefore.radius||24)+20),0,dashMax):dashMax):(move.priority>0?72:34);
       if(releaseEvent)releaseEvent.dashDistance=travel;
       moveCircle(p,direction.x*travel,direction.y*travel,this.arena);
       this.effect('slash',p.x+direction.x*45,p.y+direction.y*45,spec.type,'',.28,{move:move.id});
