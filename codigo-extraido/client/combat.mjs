@@ -1074,17 +1074,76 @@ export class CombatRenderer {
       const colors=p.move==='triattack'?['#ff916a','#77d8ff','#a3ec76']:p.move==='weatherball'?['#ffb34c','#7bd5f3','#c3b5f2']:['#f4e8b4','#c3d7e8','#e7b7e9'];
       for(let i=0;i<3;i++){const px=(i-1)*r*.63,py=Math.sin(now*.004+i*2)*r*.08,rr=r*(.25+(i===1?.05:0));ctx.fillStyle=colors[i];ctx.strokeStyle='#fff';ctx.lineWidth=1.1;ctx.beginPath();ctx.arc(px,py,rr,0,TAU);ctx.fill();ctx.stroke();ctx.fillStyle='#fff7e6';ctx.beginPath();ctx.arc(px-rr*.25,py-rr*.25,rr*.2,0,TAU);ctx.fill();}
     }else if(type==='Electric'){
-      const length=75;ctx.strokeStyle=c;ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(-length,0);for(let i=1;i<8;i++)ctx.lineTo(-length+i*length/7,(i===7?0:Math.sin(now*.065+i*3)*7));ctx.stroke();ctx.strokeStyle='#fffce8';ctx.lineWidth=1.5;ctx.stroke();
+      // One jagged bolt silhouette with a fine white inner edge.
+      ctx.strokeStyle='#4dc6ff';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(-r*1.7,0);ctx.lineTo(-r*.82,-r*.25);ctx.lineTo(-r*.43,r*.28);ctx.lineTo(r*.02,-r*.62);ctx.lineTo(r*.35,-r*.1);ctx.lineTo(r*1.7,-r*.24);ctx.stroke();
+      ctx.strokeStyle='#fffde7';ctx.lineWidth=1.3;ctx.stroke();
+      ctx.strokeStyle='#ffe65b';ctx.lineWidth=1.8;ctx.beginPath();ctx.moveTo(-r*.2,-r*.13);ctx.lineTo(r*.04,-r*.4);ctx.lineTo(r*.27,-r*.05);ctx.stroke();
     }else if(type==='Fire'){
-      for(let i=5;i>=0;i--){ctx.globalAlpha=1-i/7;ctx.fillStyle=i>2?'#ec6944':i>0?'#ffb353':'#fff4b5';ctx.beginPath();ctx.ellipse(-i*10,Math.sin(now*.04+i)*i,Math.max(3,r-i),Math.max(2,(r-i)*.75),0,0,TAU);ctx.fill();}
+      // A single directional tongue of flame, with a bright tip rather than stacked blobs.
+      const stretch=p.move==='ember'?.85:1.25;
+      for(let layer=0;layer<3;layer++){
+        const reach=r*(1.1+layer*.17)*stretch,width=r*(.78-layer*.16);
+        ctx.fillStyle=layer===0?'#c93e26':layer===1?'#ff772c':'#ffc453';
+        ctx.beginPath();ctx.moveTo(-r*.75,0);
+        ctx.quadraticCurveTo(-r*.12,-width*.9,reach,-Math.sin(now*.018+layer)*r*.12);
+        ctx.quadraticCurveTo(reach*.63,width*.68,-r*.75,0);ctx.closePath();ctx.fill();
+      }
+      ctx.fillStyle='#fff4c8';ctx.beginPath();ctx.ellipse(r*.18,0,r*.48,r*.19,0,0,TAU);ctx.fill();
+      for(let i=0;i<3;i++){ctx.fillStyle=i%2?'#ffd965':'#fff0b1';ctx.fillRect(r*(.75+i*.28),Math.sin(now*.017+i)*r*.44,2.5,2.5);}
     }else if(type==='Water'){
-      const g=ctx.createLinearGradient(-70,0,10,0);g.addColorStop(0,'#5dceff00');g.addColorStop(1,'#77dbff');ctx.fillStyle=g;ctx.beginPath();ctx.moveTo(-75,0);ctx.quadraticCurveTo(-10,-r*1.2,r,0);ctx.quadraticCurveTo(-10,r*1.2,-75,0);ctx.fill();ctx.strokeStyle='#e0ffff';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(0,0,r,r*.65,0,0,TAU);ctx.stroke();
+      // A pointed crest with a clean inner wake and a few round droplets.
+      ctx.fillStyle='#168fd3';ctx.beginPath();ctx.moveTo(-r*1.65,0);ctx.quadraticCurveTo(-r*.35,-r*1.15,r*1.45,-r*.12);
+      ctx.quadraticCurveTo(r*.65,r*.04,r*1.65,r*.18);ctx.quadraticCurveTo(0,r*.65,-r*1.65,0);ctx.closePath();ctx.fill();
+      ctx.fillStyle='#63d0f6';ctx.beginPath();ctx.moveTo(-r*1.3,-r*.03);ctx.quadraticCurveTo(-r*.2,-r*.72,r*1.1,-r*.12);ctx.quadraticCurveTo(0,r*.12,-r*1.3,-r*.03);ctx.closePath();ctx.fill();
+      ctx.strokeStyle='#e6fdff';ctx.lineWidth=1.6;ctx.beginPath();ctx.moveTo(-r*1.12,-r*.05);ctx.quadraticCurveTo(0,-r*.44,r*1.16,-r*.1);ctx.stroke();
+      for(let i=0;i<3;i++){const x=r*(.15+i*.38),y=Math.sin(now*.012+i*2)*r*.42;ctx.fillStyle=i%2?'#fff':'#a4edff';ctx.beginPath();ctx.arc(x,y,Math.max(1.5,r*.13),0,TAU);ctx.fill();}
     }else if(type==='Ice'){
-      ctx.fillStyle='#b9f5ff';ctx.strokeStyle='#ffffff';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(r*1.7,0);ctx.lineTo(-r*.6,-r*.65);ctx.lineTo(-r,0);ctx.lineTo(-r*.6,r*.65);ctx.closePath();ctx.fill();ctx.stroke();ctx.strokeStyle='#79bde4';ctx.beginPath();ctx.moveTo(-r,0);ctx.lineTo(r*1.7,0);ctx.stroke();
+      // Three chipped ice facets with dark blue edge lines and small white cuts.
+      for(let i=0;i<3;i++){ctx.save();ctx.translate((i-1)*r*.48,Math.sin(now*.008+i)*r*.12);ctx.rotate((i-1)*.18);
+        const size=r*(i===1?1.1:.72);ctx.fillStyle=i===1?'#dffbff':'#77cdec';ctx.strokeStyle='#f8ffff';ctx.lineWidth=1.1;ctx.beginPath();
+        ctx.moveTo(size*.1,-size);ctx.lineTo(size*.38,-size*.12);ctx.lineTo(size*.16,size*.72);ctx.lineTo(-size*.24,size*.25);ctx.closePath();ctx.fill();ctx.stroke();
+        ctx.strokeStyle='#519ec6';ctx.beginPath();ctx.moveTo(size*.1,-size*.72);ctx.lineTo(size*.16,size*.55);ctx.stroke();ctx.restore();}
     }else if(type==='Grass'){
-      ctx.rotate(now*.016);ctx.fillStyle=c;ctx.beginPath();ctx.moveTo(r*1.5,0);ctx.quadraticCurveTo(-r,-r*1.8,-r,0);ctx.quadraticCurveTo(-r,r,r*1.5,0);ctx.fill();ctx.strokeStyle='#d6ffc3';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(-r,0);ctx.lineTo(r,0);ctx.stroke();
+      // Leaf-shaped dart, with a second small leaf trailing behind it.
+      const leaf=(x,y,size,angle,color)=>{ctx.save();ctx.translate(x,y);ctx.rotate(angle);ctx.fillStyle=color;ctx.strokeStyle='#e1ffc4';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(size,0);ctx.quadraticCurveTo(-size*.35,-size*.9,-size,0);ctx.quadraticCurveTo(-size*.32,size*.72,size,0);ctx.closePath();ctx.fill();ctx.stroke();ctx.strokeStyle='#f1ffd5';ctx.beginPath();ctx.moveTo(-size*.83,0);ctx.lineTo(size*.73,0);ctx.stroke();ctx.restore();};
+      leaf(0,0,r*1.25,0,'#75c852');leaf(-r*.55,r*.28,r*.65,-.3,'#b2e978');
+    }else if(type==='Poison'){
+      // Heavy droplets with teardrop points and a pale specular cut.
+      for(let i=0;i<4;i++){const x=(i-1.5)*r*.46,y=Math.sin(now*.01+i*1.9)*r*.19,size=r*(.27+(i%2)*.09);ctx.fillStyle=i%2?'#744099':'#a16ac0';ctx.strokeStyle='#dfb5ee';ctx.lineWidth=1;
+        ctx.beginPath();ctx.moveTo(x,y-size);ctx.quadraticCurveTo(x+size*1.1,y-size*.18,x+size*.55,y+size*.58);ctx.quadraticCurveTo(x,y+size*1.03,x-size*.55,y+size*.58);ctx.quadraticCurveTo(x-size*1.1,y-size*.18,x,y-size);ctx.closePath();ctx.fill();ctx.stroke();ctx.fillStyle='#f3d7ff';ctx.fillRect(x-size*.2,y-size*.35,Math.max(1,size*.2),Math.max(1,size*.18));}
+    }else if(type==='Ground'||type==='Rock'){
+      // A faceted stone projectile with two clear planes, not a glowing circle.
+      ctx.fillStyle='#82715e';ctx.strokeStyle='#e0c8a3';ctx.lineWidth=1.3;ctx.beginPath();ctx.moveTo(-r*1.15,-r*.18);ctx.lineTo(-r*.62,-r*.95);ctx.lineTo(r*.28,-r*.82);ctx.lineTo(r*1.18,-r*.22);ctx.lineTo(r*.7,r*.72);ctx.lineTo(-r*.22,r*.94);ctx.lineTo(-r*1.05,r*.42);ctx.closePath();ctx.fill();ctx.stroke();
+      ctx.fillStyle='#c8ad86';ctx.beginPath();ctx.moveTo(-r*.62,-r*.95);ctx.lineTo(r*.28,-r*.82);ctx.lineTo(r*.08,-r*.05);ctx.lineTo(-r*1.15,-r*.18);ctx.closePath();ctx.fill();
+      ctx.strokeStyle='#554c44';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(r*.08,-r*.05);ctx.lineTo(r*.7,r*.72);ctx.lineTo(-r*.22,r*.94);ctx.stroke();
+    }else if(type==='Psychic'){
+      // Lens rings with a centered diamond, intentionally less bloom-heavy.
+      for(let i=0;i<3;i++){ctx.strokeStyle=i===0?'#fff0ff':i===1?'#de9be9':'#927ad8';ctx.lineWidth=2-i*.4;ctx.beginPath();ctx.ellipse(0,0,r*(.65+i*.32),r*(.3+i*.12),i*.12,now*.003+i,now*.003+i+Math.PI*1.45);ctx.stroke();}
+      ctx.fillStyle='#fff3ff';ctx.strokeStyle='#ba9bec';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(r*.95,0);ctx.lineTo(0,-r*.42);ctx.lineTo(-r*.75,0);ctx.lineTo(0,r*.42);ctx.closePath();ctx.fill();ctx.stroke();
+    }else if(type==='Ghost'||type==='Dark'){
+      // A tapered shadow crescent with separated wisps.
+      ctx.fillStyle=type==='Ghost'?'#64519b':'#393449';ctx.strokeStyle='#c9b7ff';ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(r*1.3,0);ctx.quadraticCurveTo(r*.1,-r*1.1,-r*1.1,-r*.5);ctx.quadraticCurveTo(-r*.35,-r*.35,-r*.4,0);ctx.quadraticCurveTo(-r*.15,r*.8,r*1.3,0);ctx.closePath();ctx.fill();ctx.stroke();
+      ctx.strokeStyle='#eee5ff';ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(-r*.6,-r*.12);ctx.quadraticCurveTo(r*.15,-r*.32,r*.83,-r*.07);ctx.stroke();
+      for(let i=0;i<3;i++){const x=-r*(.3-i*.34),y=Math.sin(now*.01+i)*r*.5;ctx.fillStyle=i%2?'#9a83d9':'#e2d5ff';ctx.beginPath();ctx.moveTo(x,y-r*.13);ctx.lineTo(x+r*.25,y);ctx.lineTo(x,y+r*.13);ctx.closePath();ctx.fill();}
+    }else if(type==='Dragon'){
+      // Two hooked scale strokes frame a narrow dragon-energy core.
+      for(let i=0;i<2;i++){ctx.save();ctx.rotate(i?-.28:.28);ctx.strokeStyle=i?'#e98ba7':'#9185df';ctx.lineWidth=3.2-i*.7;ctx.beginPath();ctx.moveTo(-r*1.1,-r*.2);ctx.quadraticCurveTo(-r*.1,-r*.85,r*.25,0);ctx.quadraticCurveTo(r*.5,r*.2,r*1.15,-r*.15);ctx.stroke();ctx.restore();}
+      ctx.strokeStyle='#f7e7ff';ctx.lineWidth=1.1;ctx.beginPath();ctx.moveTo(-r*.8,0);ctx.lineTo(0,-r*.18);ctx.lineTo(r*.82,0);ctx.stroke();
+    }else if(type==='Steel'){
+      ctx.fillStyle='#bdd9dd';ctx.strokeStyle='#f5ffff';ctx.lineWidth=1.1;ctx.beginPath();ctx.moveTo(r*1.35,0);ctx.lineTo(r*.2,-r*.8);ctx.lineTo(-r*.75,-r*.44);ctx.lineTo(-r*.4,r*.48);ctx.lineTo(r*.2,r*.78);ctx.closePath();ctx.fill();ctx.stroke();
+      ctx.strokeStyle='#7ea7b2';ctx.beginPath();ctx.moveTo(r*.2,-r*.8);ctx.lineTo(r*.05,0);ctx.lineTo(r*.2,r*.78);ctx.stroke();ctx.fillStyle='#fff';ctx.fillRect(r*.2,-r*.08,2,2);
+    }else if(type==='Fairy'){
+      ctx.strokeStyle='#f19bd5';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(-r*1.2,r*.15);ctx.quadraticCurveTo(0,-r*.45,r*1.2,0);ctx.stroke();
+      for(let i=0;i<4;i++){const x=(i-1.5)*r*.5,y=Math.sin(now*.01+i)*r*.32;ctx.fillStyle=i%2?'#fff4ff':'#ffb5e8';ctx.beginPath();ctx.moveTo(x,y-r*.18);ctx.lineTo(x+r*.06,y-r*.06);ctx.lineTo(x+r*.18,y);ctx.lineTo(x+r*.06,y+r*.06);ctx.lineTo(x,y+r*.18);ctx.lineTo(x-r*.06,y+r*.06);ctx.lineTo(x-r*.18,y);ctx.lineTo(x-r*.06,y-r*.06);ctx.closePath();ctx.fill();}
+    }else if(type==='Bug'){
+      for(let i=0;i<3;i++){ctx.save();ctx.rotate((i-1)*.36);ctx.fillStyle=i%2?'#8acb57':'#c9e987';ctx.strokeStyle='#f4ffd9';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(r*1.2,0);ctx.lineTo(-r*.25,-r*.36);ctx.lineTo(-r*.85,0);ctx.lineTo(-r*.25,r*.36);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();}
+    }else if(type==='Flying'){
+      for(let i=0;i<3;i++){ctx.save();ctx.rotate((i-1)*.2);ctx.strokeStyle=i===1?'#fff':'#adcbed';ctx.lineWidth=3-i*.5;ctx.beginPath();ctx.moveTo(-r*1.1,-r*.2);ctx.quadraticCurveTo(-r*.1,-r*.7,r*1.2,0);ctx.quadraticCurveTo(r*.1,r*.12,-r*1.1,-r*.2);ctx.stroke();ctx.restore();}
     }else{
-      const gradient=ctx.createRadialGradient(0,0,1,0,0,r*1.8);gradient.addColorStop(0,'#ffffff');gradient.addColorStop(.25,c);gradient.addColorStop(1,c+'00');ctx.fillStyle=gradient;ctx.beginPath();ctx.arc(0,0,r*1.8,0,TAU);ctx.fill();ctx.strokeStyle=c;ctx.lineWidth=1.5;ctx.beginPath();ctx.ellipse(0,0,r*1.5,r*.75,now*.013,0,TAU);ctx.stroke();
+      // Normal/Fighting: a compact star strike with straight speed lines.
+      ctx.strokeStyle='#fff0ca';ctx.lineWidth=2.2;ctx.beginPath();ctx.moveTo(-r*1.45,r*.14);ctx.lineTo(-r*.5,0);ctx.lineTo(-r*.12,-r*.5);ctx.lineTo(r*.2,0);ctx.lineTo(r*1.4,-r*.12);ctx.stroke();
+      ctx.fillStyle='#fff5d5';ctx.beginPath();ctx.moveTo(r*.2,-r*.55);ctx.lineTo(r*.32,-r*.1);ctx.lineTo(r*.78,0);ctx.lineTo(r*.32,r*.1);ctx.lineTo(r*.2,r*.55);ctx.lineTo(r*.08,r*.1);ctx.lineTo(-r*.4,0);ctx.lineTo(r*.08,-r*.1);ctx.closePath();ctx.fill();
+      for(let i=0;i<2;i++){ctx.strokeStyle='#f2dfb3';ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(-r*1.25,(i?1:-1)*r*.25);ctx.lineTo(-r*.65,(i?1:-1)*r*.25);ctx.stroke();}
     }
     ctx.restore();
     // No universal random trail: each move owns its silhouette and deliberate trail.
