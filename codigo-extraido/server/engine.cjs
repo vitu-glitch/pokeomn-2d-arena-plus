@@ -89,6 +89,7 @@ class Battle {
     t.input.aimY=clamp(finite(input.aimY,t.input.aimY),0,this.arena.height);
     t.input.lockOn=Boolean(input.lockOn);
     const p=this.active(teamIndex);
+    if(p?.evolution){t.input.dx=0;t.input.dy=0;t.input.cast=null;t.input.m1=false;t.input.dodge=false;t.input.switch=null;return;}
     if(mag>.001&&!p.action&&!p.deployment)p.facing={...vector};
     if(Number.isInteger(input.switch)) this.switchPokemon(teamIndex,input.switch);
     if(input.dodge) this.dodge(teamIndex);
@@ -97,14 +98,14 @@ class Battle {
   }
   dodge(teamIndex) {
     const p=this.active(teamIndex), t=this.teams[teamIndex];
-    if(p.hp<=0 || p.deployment || p.action || p.hitstun>0 || p.dodgeCooldown>0 || p.status==='slp' || p.status==='frz' || p.flinch>0) return false;
+    if(p.hp<=0 || p.deployment || p.evolution || p.action || p.hitstun>0 || p.dodgeCooldown>0 || p.status==='slp' || p.status==='frz' || p.flinch>0) return false;
     p.dodge=.26; p.dodgeCooldown=2.8;
     p.dodgeDirection=Math.hypot(t.input.dx,t.input.dy)>.001?unit(t.input.dx,t.input.dy):{...p.facing};
     this.effect('dodge',p.x,p.y,p.types[0],'',.25); return true;
   }
   switchPokemon(teamIndex,slot,forced=false) {
     const t=this.teams[teamIndex], before=this.active(teamIndex), after=t.roster[slot];
-    if(!after || after.hp<=0 || slot===t.active || (!forced&&(before.hp<=0 || t.switchCooldown>0 || before.deployment || before.dodge>0 || before.action || before.hitstun>0))) return false;
+    if(!after || after.hp<=0 || slot===t.active || (!forced&&(before.hp<=0 || t.switchCooldown>0 || before.deployment || before.evolution || before.dodge>0 || before.action || before.hitstun>0))) return false;
     const outgoingSpecies=before.species;
     if(before.hp>0)this.event('recall',`${before.name}, return!`,{team:teamIndex,sourceSpecies:outgoingSpecies,targetSpecies:after.species,x:before.x,y:before.y,duration:.25});
     if(before.ability==='naturalcure') {before.status=null;before.statusTime=0;}
@@ -159,7 +160,7 @@ class Battle {
   }
   basicAttack(teamIndex) {
     const t=this.teams[teamIndex],p=this.active(teamIndex);
-    if(this.mode!=='battle-royale'||!t||!p||p.hp<=0||p.deployment||p.action||p.hitstun>0||p.attackLock>0||p.dodge>0||p.flinch>0||p.status==='slp'||p.status==='frz'||p.m1Cooldown>0)return false;
+    if(this.mode!=='battle-royale'||!t||!p||p.hp<=0||p.deployment||p.evolution||p.action||p.hitstun>0||p.attackLock>0||p.dodge>0||p.flinch>0||p.status==='slp'||p.status==='frz'||p.m1Cooldown>0)return false;
     const target=this.nearestOpponent(teamIndex,p);
     if(!target||target.hp<=0||distance(p,target)>220||!clearLine(p,target,this.arena))return false;
     const direction=unit(target.x-p.x,target.y-p.y);
@@ -173,7 +174,7 @@ class Battle {
   }
   cast(teamIndex,slot) {
     const t=this.teams[teamIndex], p=this.active(teamIndex);
-    if(p.hp<=0 || p.deployment || p.action || p.hitstun>0 || p.castLock>0 || p.attackLock>0 || p.dodge>0 || p.flinch>0 || p.status==='slp') return false;
+    if(p.hp<=0 || p.deployment || p.evolution || p.action || p.hitstun>0 || p.castLock>0 || p.attackLock>0 || p.dodge>0 || p.flinch>0 || p.status==='slp') return false;
     const state=p.moves[slot],exhausted=state?.pp<=0;
     if(!Number.isInteger(slot) || !state || slot<0 || slot>3 || (exhausted?p.struggleCooldown:state.cooldown)>0) return false;
     const move=getMove(exhausted?'struggle':state.id), spec=moveSpec(move);
@@ -277,7 +278,7 @@ class Battle {
     return false;
   }
   hit(attacker,defender,move,direction,context={}) {
-    if(defender.hp<=0 || defender.dodge>0 || defender.evolution) return;
+    if(attacker?.evolution || defender.hp<=0 || defender.dodge>0 || defender.evolution) return;
     if(defender.protect>0) {this.effect('blocked',defender.x,defender.y,'Normal','Protected',.7);return;}
     if(this.abilityBlocks(attacker,defender,move)) {this.effect('immune',defender.x,defender.y,defender.types[0],defender.abilityName,.9);return;}
     const mult=accuracyMultiplier((attacker.stages.accuracy||0)-(defender.stages.evasion||0));
