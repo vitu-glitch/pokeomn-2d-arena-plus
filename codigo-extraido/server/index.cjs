@@ -127,7 +127,7 @@ async function startServer({port=0,host='127.0.0.1',rootDir=path.join(__dirname,
   function verifyPassword(value,stored,salt){
     return /^[a-f0-9]{128}$/i.test(stored||'')&&safeEqual(value,stored);
   }
-  function googleConfigured(){return Boolean(process.env.GOOGLE_CLIENT_ID&&process.env.GOOGLE_CLIENT_SECRET);}
+  function googleConfigured(){const id=String(process.env.GOOGLE_CLIENT_ID||'').trim(),secret=String(process.env.GOOGLE_CLIENT_SECRET||'').trim();return Boolean(id&&secret&&!/^(your-|paste-|replace|change-me)/i.test(id)&&!/^(your-|paste-|replace|change-me)/i.test(secret));}
   function googleRedirectUri(req){
     return process.env.GOOGLE_REDIRECT_URI||((req.secure?'https':'http')+'://'+req.get('host')+'/api/auth/google/callback');
   }
