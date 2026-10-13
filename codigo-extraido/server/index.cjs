@@ -179,7 +179,7 @@ async function startServer({port=0,host='127.0.0.1',rootDir=path.join(__dirname,
     if(typeof body.avatar!=='string')return res.status(400).json({error:'Choose a valid profile image.'});
     const avatar=body.avatar;
     if(avatar && avatar.length>370_000)return res.status(413).json({error:'The profile image is too large. Please choose a smaller image.'});
-    if(avatar&&!/^https:\/\/[a-zA-Z0-9.-]+\/[^\s]*$/.test(avatar)&&!/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(avatar))return res.status(400).json({error:'Use a PNG, JPG, or WebP image.'});
+    if(avatar&&!/^https:\/\/([a-zA-Z0-9-]+\.)*googleusercontent\.com\/[^\s]*$/.test(avatar)&&!/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(avatar))return res.status(400).json({error:'Use a PNG, JPG, or WebP image.'});
     if(avatar.startsWith('data:image/')){
       const payload=avatar.slice(avatar.indexOf(',')+1),buffer=Buffer.from(payload,'base64');
       if(buffer.length>256*1024)return res.status(413).json({error:'The profile image must be smaller than 256 KB.'});
