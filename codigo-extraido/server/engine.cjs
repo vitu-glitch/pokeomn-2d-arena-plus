@@ -181,7 +181,7 @@ class Battle {
     moveCircle(p,direction.x*28,direction.y*28,this.arena);
     p.facing=direction;p.m1Cooldown=.42;p.attackLock=.12;
     const move=getMove('scratch');
-    this.effect('slash',p.x+direction.x*48,p.y+direction.y*48,'Normal','',.35);
+    this.effect('slash',p.x+direction.x*48,p.y+direction.y*48,'Normal','',.35,{move:'scratch',direction:{...direction}});
     this.hit(p,target,move,direction,{sourceSpecies:p.species,actionId:this.nextId++});
     this.event('m1',`${p.name} used Scratch!`,{team:teamIndex,targetSpecies:target.species,sourceSpecies:p.species,x:target.x,y:target.y});
     return true;
