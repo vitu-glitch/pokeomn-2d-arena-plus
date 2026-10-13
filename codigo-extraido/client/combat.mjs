@@ -218,7 +218,7 @@ export class CombatRenderer {
       if(event.kind==='deployRelease'){this.audio.cry(event.species||fighter?.species);this.burst(event.x,event.y-14,'Normal',16,70);}
       if(event.kind==='recall'){this.audio.recall();const old=previous?.fighters?.find(f=>f.team===event.team&&f.species===event.sourceSpecies);this.recalls.push({species:event.sourceSpecies,x:event.x,y:event.y,facing:old?.facing||{x:1,y:0},life:.28,max:.28});}
       if(event.kind==='ppPickup'){this.audio.heal();this.burst(event.x,event.y-8,'Psychic',10,45);}
-      if (['status','evolution','levelUp','elimination','xp'].includes(event.kind) && event.text && !event.silent && !(event.kind==='xp'&&state.events?.some(item=>item.team===event.team&&['evolution','levelUp'].includes(item.kind)))) this.notice(event.text,event.type||'Normal');
+      if (['status','evolutionStart','evolution','levelUp','elimination','xp'].includes(event.kind) && event.text && !event.silent && !(event.kind==='xp'&&state.events?.some(item=>item.team===event.team&&['evolution','levelUp'].includes(item.kind)))) this.notice(event.text,event.type||'Normal');
     }
     for (const effect of state.effects || []) {
       const key = `fx:${effect.id}`;
@@ -365,29 +365,60 @@ export class CombatRenderer {
   drawEvolution(f,pos,now) {
     const transition=f.evolution;if(!transition)return;
     const ctx=this.ctx,progress=clamp((transition.elapsed+clamp((now-this.lastSnapshot)/1000,0,.08))/Math.max(.1,transition.duration),0,1);
-    const pulse=.5+.5*Math.sin(now/72),radius=26+progress*25;
-    ctx.save();ctx.translate(pos.x,pos.y-19);ctx.globalCompositeOperation='lighter';
-    ctx.globalAlpha=.22+.28*pulse;
-    const glow=ctx.createRadialGradient(0,0,3,0,0,48+progress*22);
-    glow.addColorStop(0,'rgba(255,255,240,.92)');glow.addColorStop(.4,'rgba(255,229,142,.34)');glow.addColorStop(1,'rgba(255,211,110,0)');
-    ctx.fillStyle=glow;ctx.fillRect(-85,-90,170,140);
-    ctx.globalAlpha=.45+.45*pulse;ctx.strokeStyle='#fff6c9';ctx.lineWidth=2.1;
-    for(let ring=0;ring<3;ring++){
-      ctx.save();ctx.rotate((now/650)*(ring%2?-.75:1)+ring*2.1);
-      ctx.beginPath();ctx.ellipse(0,0,radius+ring*7,9+ring*4,0,0,TAU);ctx.stroke();ctx.restore();
+    const pulse=.5+.5*Math.sin(now/58),radius=25+progress*34,flash=Math.pow(Math.max(0,Math.sin(now/83)),8);
+    ctx.save();ctx.translate(pos.x,pos.y-20);ctx.globalCompositeOperation='lighter';
+
+    // Bright central aura and the rotating rings used by classic evolution scenes.
+    ctx.globalAlpha=.26+.32*pulse;
+    const glow=ctx.createRadialGradient(0,0,2,0,0,54+progress*38);
+    glow.addColorStop(0,'rgba(255,255,255,1)');
+    glow.addColorStop(.28,'rgba(255,249,207,.78)');
+    glow.addColorStop(.62,'rgba(255,213,104,.24)');
+    glow.addColorStop(1,'rgba(255,211,110,0)');
+    ctx.fillStyle=glow;ctx.fillRect(-100,-100,200,165);
+
+    ctx.globalAlpha=.48+.48*pulse;ctx.strokeStyle='#fff9dc';ctx.lineWidth=2;
+    for(let ring=0;ring<4;ring++){
+      ctx.save();
+      ctx.rotate((now/560)*(ring%2?-.9:1)+ring*1.57);
+      ctx.beginPath();
+      ctx.ellipse(0,0,radius+ring*5,8+ring*3,0,0,TAU);
+      ctx.stroke();ctx.restore();
     }
-    ctx.globalAlpha=.55+.4*pulse;ctx.fillStyle='#fff9db';ctx.beginPath();ctx.arc(0,0,8+progress*8+pulse*2,0,TAU);ctx.fill();
-    for(let i=0;i<12;i++){
-      const angle=i*TAU/12+now/420*(i%2?1:-1),orbit=radius+Math.sin(now/150+i)*6;
+
+    // Short rays spin around the Pokémon; individual motes orbit at different speeds.
+    ctx.lineWidth=1.5;ctx.strokeStyle='#fff3b7';
+    for(let ray=0;ray<10;ray++){
+      const angle=ray*TAU/10+now/330*(ray%2?1:-1),inner=13+pulse*7,outer=radius+9+(ray%3)*5;
+      ctx.globalAlpha=.22+.55*((Math.sin(now/95+ray)+1)/2);
+      ctx.beginPath();ctx.moveTo(Math.cos(angle)*inner,Math.sin(angle)*inner*.65);ctx.lineTo(Math.cos(angle)*outer,Math.sin(angle)*outer*.65);ctx.stroke();
+    }
+    for(let mote=0;mote<16;mote++){
+      const angle=mote*TAU/16+now/390*(mote%2?1:-1),orbit=radius+Math.sin(now/135+mote)*7;
       const x=Math.cos(angle)*orbit,y=Math.sin(angle)*orbit*.62;
-      ctx.globalAlpha=.45+.5*((Math.sin(now/95+i*1.7)+1)/2);
-      ctx.fillStyle=i%3===0?'#fff':'#ffe78c';ctx.fillRect(x-2,y-2,4,4);
+      ctx.globalAlpha=.35+.65*((Math.sin(now/78+mote*1.3)+1)/2);
+      ctx.fillStyle=mote%4===0?'#fff':'#ffe78c';
+      ctx.beginPath();ctx.arc(x,y,mote%3===0?2.8:1.8,0,TAU);ctx.fill();
     }
-    if(progress>.72&&Math.floor(now/90)%2===0){
-      ctx.globalAlpha=.24+.2*pulse;ctx.fillStyle='#fff';ctx.beginPath();ctx.ellipse(0,-1,24+progress*14,29+progress*14,0,0,TAU);ctx.fill();
+
+    // A clean white pulse near the end marks the instant the new form appears.
+    if(progress>.68){
+      ctx.globalAlpha=(.08+.22*pulse+flash*.42)*(progress-.68)/.32;
+      ctx.fillStyle='#fff';
+      ctx.beginPath();ctx.ellipse(0,-2,22+progress*28,27+progress*30,0,0,TAU);ctx.fill();
     }
-    ctx.globalCompositeOperation='source-over';ctx.textAlign='center';ctx.textBaseline='middle';ctx.font='800 10px Barlow, sans-serif';ctx.globalAlpha=.9;ctx.fillStyle='#fff4c1';ctx.fillText('EVOLVING',0,-58);
-    const destination=this.species(transition.toSpecies)?.name;if(destination){ctx.font='700 9px Barlow, sans-serif';ctx.fillStyle='#fff';ctx.fillText(destination.toUpperCase(),0,57);}
+    ctx.globalAlpha=.9;ctx.textAlign='center';ctx.textBaseline='middle';
+    const source=this.species(transition.fromSpecies)?.name||f.name;
+    ctx.font='800 10px Barlow, sans-serif';ctx.fillStyle='#fff7cf';
+    ctx.shadowColor='#ffdb73';ctx.shadowBlur=8;
+    ctx.fillText(`WHAT? ${source.toUpperCase()} IS EVOLVING!`,0,-67,205);
+    const destination=this.species(transition.toSpecies)?.name;
+    if(destination){
+      ctx.shadowBlur=0;ctx.font='800 10px Barlow, sans-serif';ctx.fillStyle='#fff';
+      ctx.fillText(destination.toUpperCase(),0,61,160);
+    }
+    ctx.globalAlpha=.8;ctx.fillStyle='#111b2b99';ctx.fillRect(-31,74,62,3);
+    ctx.fillStyle='#ffe88c';ctx.fillRect(-30,75,60*progress,1);
     ctx.restore();
   }
 
@@ -575,7 +606,7 @@ export class CombatRenderer {
       if(f.deployment?.phase==='release'&&summon<.7)ctx.filter='brightness(4) saturate(0)';
       else if(record.hurtUntil>now&&Math.floor(now/55)%2===0)ctx.filter='brightness(1.65)';
       else if(f.status==='frz')ctx.filter='saturate(.35) brightness(1.15)';
-      else if(f.evolution){const phase=clamp(f.evolution.elapsed/Math.max(.1,f.evolution.duration),0,1),flash=Math.abs(Math.sin(phase*Math.PI*10));ctx.filter='brightness('+(1+flash*2.8)+') saturate('+(0.8+flash*1.1)+')';}
+      else if(f.evolution){const phase=clamp((f.evolution.elapsed+clamp((now-this.lastSnapshot)/1000,0,.08))/Math.max(.1,f.evolution.duration),0,1),pulse=.5+.5*Math.sin(now/58),silhouette=phase<.18||Math.floor(now/95)%2===0;ctx.filter=silhouette?'brightness(0) invert(1) sepia(1) saturate(5) hue-rotate(345deg) drop-shadow(0 0 '+(5+pulse*10)+'px #fff1a3)':'brightness('+(1.2+pulse*2.1)+') saturate(1.8) drop-shadow(0 0 '+(4+pulse*8)+'px #fff1a3)';}
       const anchor=a.anchors?.[row]?.[frame] || [a.frameWidth/2,a.frameHeight/2+metrics.footOffset];
       ctx.drawImage(image,frame*a.frameWidth,row*a.frameHeight,a.frameWidth,a.frameHeight,-anchor[0],-anchor[1],a.frameWidth,a.frameHeight);
       ctx.restore();
@@ -597,6 +628,7 @@ export class CombatRenderer {
     const horizontal=record.row>=5&&record.row<=7?-1:1;
     const squash=moving?1+Math.sin(phase*2)*.025:record.action&&visual.actionPhase==='windup'?1-visual.progress*.08:1;
     const faintProgress=f.hp<=0?clamp((now-record.faintAt)/700,0,1):0;
+    const evolutionPulse=f.evolution?.5+.5*Math.sin(now/58):0;
     if(f.status==='frz'){
       const frozenImage=this.loadImage(p?.sprite);
       if(frozenImage){const worldHeight=height/this.camera.zoom,worldWidth=worldHeight*Math.min(1.4,frozenImage.width/Math.max(1,frozenImage.height));element.style.opacity='0';this.ctx.save();this.ctx.translate(pos.x,pos.y);this.ctx.scale(horizontal,1);this.ctx.filter='saturate(.4) brightness(1.15)';this.ctx.drawImage(frozenImage,-worldWidth/2,-worldHeight*.88,worldWidth,worldHeight);this.ctx.restore();record.drawnAnimation='runtime-frozen';record.drawnFrame=0;record.drawnRow=record.row;return;}
@@ -604,8 +636,8 @@ export class CombatRenderer {
     element.style.left=screen.x/12+'%';element.style.top=screen.y/7.6+'%';element.style.width=width/12+'%';element.style.height=height/7.6+'%';
     element.style.opacity=String(visual.alpha*visual.summon);element.style.zIndex=String(10+Math.floor(pos.y/10));
     element.dataset.status=f.status||'';
-    const img=element.firstElementChild;img.style.transform=`translateY(${-step}px) scale(${horizontal*(.8+.2*visual.summon)},${squash*(1-faintProgress*.55)}) rotate(${lean+faintProgress*70}deg)`;
-    img.style.filter=desired==='hurt'?'brightness(1.7)':f.hp<=0?'saturate(.35)':'';
+    const img=element.firstElementChild;const evolutionScale=f.evolution?1.02+evolutionPulse*.055:1;img.style.transform=`translateY(${-step}px) scale(${horizontal*(.8+.2*visual.summon)*evolutionScale},${squash*(1-faintProgress*.55)*evolutionScale}) rotate(${lean+faintProgress*70}deg)`;
+    img.style.filter=f.evolution?(Math.floor(now/95)%2===0?`brightness(0) invert(1) sepia(1) saturate(5) hue-rotate(345deg) drop-shadow(0 0 ${5+evolutionPulse*10}px #fff1a3)`:`brightness(${1.2+evolutionPulse*2.1}) saturate(1.8) drop-shadow(0 0 ${4+evolutionPulse*8}px #fff1a3)`):desired==='hurt'?'brightness(1.7)':f.hp<=0?'saturate(.35)':'';
     record.drawnAnimation=`runtime-${desired}`;record.drawnFrame=Math.floor(record.walkTime*8)%4;record.drawnRow=record.row;
   }
 
