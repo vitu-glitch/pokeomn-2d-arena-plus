@@ -262,9 +262,11 @@ export class CombatRenderer {
       else if(moveId==='dragonclaw'||moveId==='leafblade'||moveId==='slash')this.effects.push({kind:'clawArc',x:x+direction.x*36,y:y+direction.y*36-12,type:event.type,direction,life:.34,max:.34,move:moveId});
       else if(moveId==='playrough')this.effects.push({kind:'fairyImpact',x:x+direction.x*34,y:y+direction.y*34-12,type:event.type,direction,life:.4,max:.4,move:moveId});
       else if(['headbutt','zenheadbutt','ironhead'].includes(moveId))this.effects.push({kind:'heavyImpact',x:x+direction.x*34,y:y+direction.y*34-12,type:event.type,direction,life:.38,max:.38,move:moveId});
+      else if(['firepunch','thunderpunch','icepunch','machpunch','bulletpunch','drainpunch'].includes(moveId))this.effects.push({kind:'elementalPunch',x:x+direction.x*34,y:y+direction.y*34-12,type:event.type,direction,life:.34,max:.34,move:moveId});
+      else if(['vinewhip','powerwhip'].includes(moveId))this.effects.push({kind:'vineWhip',x:x+direction.x*35,y:y+direction.y*35-12,type:'Grass',direction,life:.38,max:.38,move:moveId});
       else this.effects.push({kind:'slash',x,y:y-12,type:event.type,direction,life:.28,max:.28,move:event.move});
     }
-    else if (kind === 'pulse') this.effects.push({kind:'pulse',x,y,type:event.type,life:.52,max:.52,radius:move.arena?.range||170});
+    else if (kind === 'pulse') {const pulseLife={earthquake:.9,bulldoze:.72,discharge:.68,dazzlinggleam:.68,hypervoice:.62,snarl:.62,strugglebug:.62}[event.move]||.52;this.effects.push({kind:'pulse',x,y,type:event.type,life:pulseLife,max:pulseLife,radius:move.arena?.range||170,move:event.move,direction});}
     else if (kind === 'self') this.effects.push({kind:'self',x,y,type:event.type,life:.5,max:.5});
     else this.effects.push({kind:'muzzle',x:x+direction.x*20,y:y+direction.y*20-12,type:event.type,direction,life:.2,max:.2});
     this.burst(x+direction.x*15,y+direction.y*15,event.type||move.type,7,40);
