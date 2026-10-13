@@ -237,7 +237,7 @@ class Battle {
     action.released=true;
     const teamIndex=p.team,move=getMove(action.move),spec=moveSpec(move),direction=action.direction;
     const context={sourceSpecies:action.sourceSpecies,actionId:action.id};
-    this.event('release',`${p.name} released ${move.name}.`,this.actionEvent(p,action));
+    const releaseEvent=this.event('release',`${p.name} released ${move.name}.`,this.actionEvent(p,action));
     this.event('move',`${p.name} used ${move.name}!`,this.actionEvent(p,action));
     this.effect('cast',p.x,p.y,spec.type,'',.25);
     if(spec.kind==='self') {
@@ -268,6 +268,7 @@ class Battle {
       const dashByMove={volttackle:112,wildcharge:92,flareblitz:86,aquajet:72,quickattack:86,extremespeed:122,doubleedge:70,takedown:58,bodyslam:54,struggle:48,zenheadbutt:48,headbutt:38,ironhead:32,dragonclaw:30,closecombat:28,playrough:32,leafblade:28,slash:28};
       const targetBefore=this.nearestOpponent(teamIndex,p),distanceBefore=targetBefore?distance(p,targetBefore):Infinity,dashMax=dashByMove[move.id];
       const travel=dashMax?(targetBefore?clamp(distanceBefore-Math.max(42,(targetBefore.radius||24)+20),8,dashMax):dashMax):(move.priority>0?72:34);
+      if(releaseEvent)releaseEvent.dashDistance=travel;
       moveCircle(p,direction.x*travel,direction.y*travel,this.arena);
       this.effect('slash',p.x+direction.x*45,p.y+direction.y*45,spec.type,'',.28,{move:move.id});
       const targets=this.opponents(teamIndex).filter(target=>distance(p,target)<=spec.range+target.radius && direction.x*unit(target.x-p.x,target.y-p.y).x+direction.y*unit(target.x-p.x,target.y-p.y).y>.35 && clearLine(p,target,this.arena)).sort((a,b)=>distance(p,a)-distance(p,b));
