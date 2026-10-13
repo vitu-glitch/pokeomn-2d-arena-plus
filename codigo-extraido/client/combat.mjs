@@ -227,11 +227,12 @@ export class CombatRenderer {
       if (effect.text) this.labels.push({x:effect.x,y:effect.y-18,text:effect.text,type:effect.type,life:.9,max:.9});
       if (effect.kind === 'damage') {
         const signature=effect.move;
-        if(signature&&['fireblast','bodyslam','volttackle','wildcharge','struggle','doubleedge','takedown','flareblitz','aquajet','quickattack','extremespeed','headbutt','zenheadbutt','ironhead','closecombat','dragonclaw','playrough','leafblade','slash'].includes(signature)) this.effects.push({kind:'moveImpact',move:signature,x:effect.x,y:effect.y+12,type:effect.type,life:.52,max:.52});
+        if(signature) this.effects.push({kind:'moveImpact',move:signature,x:effect.x,y:effect.y+12,type:effect.type,life:.52,max:.52});
         this.burst(effect.x, effect.y + 12, effect.type, 9, 70);
         this.addDecal(effect.x,effect.y+20,effect.type);
         if (this.settings().screenShake) this.shake = Math.max(this.shake, signature==='bodyslam'||signature==='fireblast'?4:2);
       }
+      if(effect.kind==='slash'&&effect.move==='scratch'){const life=Math.max(.2,Number(effect.life)||.28);this.effects.push({...effect,life,max:life});}
       if (['impact','effective','critical','heal','boost','immune','blocked','wispHit'].includes(effect.kind)) {
         const life=Math.max(.2,Number(effect.life)||.35);
         this.effects.push({...effect,life,max:life});
@@ -255,17 +256,21 @@ export class CombatRenderer {
     this.audio.cast(event.type || move.type,event.move);
     if (kind === 'melee') {
       const moveId=event.move;
-      const chargeLengths={volttackle:118,wildcharge:98,flareblitz:92,aquajet:78,quickattack:90,extremespeed:128,doubleedge:76,takedown:64,struggle:52};
+      const chargeLengths={volttackle:118,wildcharge:98,flareblitz:92,bravebird:96,headsmash:86,aquajet:78,quickattack:90,extremespeed:128,doubleedge:76,takedown:64,struggle:52};
       if(chargeLengths[moveId])this.effects.push({kind:'chargeTrail',x,y:y-12,type:event.type,direction,life:.42,max:.42,move:moveId,length:Math.max(2,Number.isFinite(Number(event.dashDistance))?Number(event.dashDistance):chargeLengths[moveId])});
       else if(moveId==='bodyslam')this.effects.push({kind:'bodySlamLaunch',x,y:y-12,type:'Normal',direction,life:.42,max:.42,move:moveId});
       else if(moveId==='flamewheel')this.effects.push({kind:'fireWheel',x,y:y-12,type:'Fire',direction,life:.48,max:.48,move:moveId});
       else if(['waterfall','aquatail'].includes(moveId))this.effects.push({kind:'waterSlash',x:x+direction.x*34,y:y+direction.y*34-12,type:'Water',direction,life:.4,max:.4,move:moveId});
       else if(['tackle','pound','strength','stomp','takedown','doubleedge'].includes(moveId))this.effects.push({kind:'heavyImpact',x:x+direction.x*34,y:y+direction.y*34-12,type:event.type,direction,life:.34,max:.34,move:moveId});
+      else if(['bite','crunch','bugbite'].includes(moveId))this.effects.push({kind:'biteImpact',x:x+direction.x*33,y:y+direction.y*33-12,type:event.type,direction,life:.34,max:.34,move:moveId});
+      else if(moveId==='leechlife')this.effects.push({kind:'leechDrain',x:x+direction.x*33,y:y+direction.y*33-12,type:'Bug',direction,life:.45,max:.45,move:moveId});
+      else if(moveId==='lick'||moveId==='astonish'||moveId==='shadowsneak')this.effects.push({kind:'shadowClaw',x:x+direction.x*33,y:y+direction.y*33-12,type:'Ghost',direction,life:.35,max:.35,move:moveId});
+      else if(moveId==='drillpeck')this.effects.push({kind:'drillPeck',x:x+direction.x*33,y:y+direction.y*33-12,type:'Flying',direction,life:.36,max:.36,move:moveId});
       else if(moveId==='closecombat')this.effects.push({kind:'combatFlurry',x:x+direction.x*24,y:y+direction.y*24-12,type:event.type,direction,life:.42,max:.42,move:moveId});
       else if(['dragonclaw','leafblade','slash','cut','shadowclaw','psychocut','nightslash','metalclaw','steelwing','irontail','poisonjab','crosspoison','drillpeck','peck','wingattack','aerialace','airslash','xscissor'].includes(moveId))this.effects.push({kind:moveId==='xscissor'?'xScissor':moveId==='shadowclaw'?'shadowClaw':'clawArc',x:x+direction.x*36,y:y+direction.y*36-12,type:event.type,direction,life:.36,max:.36,move:moveId});
       else if(moveId==='playrough')this.effects.push({kind:'fairyImpact',x:x+direction.x*34,y:y+direction.y*34-12,type:event.type,direction,life:.4,max:.4,move:moveId});
-      else if(['headbutt','zenheadbutt','ironhead'].includes(moveId))this.effects.push({kind:'heavyImpact',x:x+direction.x*34,y:y+direction.y*34-12,type:event.type,direction,life:.38,max:.38,move:moveId});
-      else if(['firepunch','thunderpunch','icepunch','machpunch','bulletpunch','drainpunch'].includes(moveId))this.effects.push({kind:'elementalPunch',x:x+direction.x*34,y:y+direction.y*34-12,type:event.type,direction,life:.34,max:.34,move:moveId});
+      else if(['headbutt','zenheadbutt','ironhead','headsmash'].includes(moveId))this.effects.push({kind:'heavyImpact',x:x+direction.x*34,y:y+direction.y*34-12,type:event.type,direction,life:.38,max:.38,move:moveId});
+      else if(['firepunch','thunderpunch','icepunch','machpunch','bulletpunch','drainpunch','karatechop','brickbreak','spark','nuzzle'].includes(moveId))this.effects.push({kind:'elementalPunch',x:x+direction.x*34,y:y+direction.y*34-12,type:event.type,direction,life:.34,max:.34,move:moveId});
       else if(['vinewhip','powerwhip'].includes(moveId))this.effects.push({kind:'vineWhip',x:x+direction.x*35,y:y+direction.y*35-12,type:'Grass',direction,life:.38,max:.38,move:moveId});
       else this.effects.push({kind:'slash',x,y:y-12,type:event.type,direction,life:.28,max:.28,move:event.move});
     }
