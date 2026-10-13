@@ -48,7 +48,7 @@ function createPokemon(entry, slot, team, level=50) {
     originalMoves:null, transformed:false, x:team?970:230,y:380,vx:0,vy:0,radius:24,facing:{x:team?-1:1,y:0},
     status:null,statusTime:0,statusTick:0,toxicCounter:0,confusion:0,flinch:0,
     protect:.8,dodge:0,dodgeCooldown:0,dodgeDirection:{x:1,y:0},attackLock:0,castLock:0,
-    action:null,deployment:null,hitstun:0,hurtTime:0,freezeImmunity:0,
+    action:null,deployment:null,evolution:null,hitstun:0,hurtTime:0,freezeImmunity:0,
     knockX:0,knockY:0,counter:0,counterCategory:null,flashFire:false,
   };
 }
@@ -277,7 +277,7 @@ class Battle {
     return false;
   }
   hit(attacker,defender,move,direction,context={}) {
-    if(defender.hp<=0 || defender.dodge>0) return;
+    if(defender.hp<=0 || defender.dodge>0 || defender.evolution) return;
     if(defender.protect>0) {this.effect('blocked',defender.x,defender.y,'Normal','Protected',.7);return;}
     if(this.abilityBlocks(attacker,defender,move)) {this.effect('immune',defender.x,defender.y,defender.types[0],defender.abilityName,.9);return;}
     const mult=accuracyMultiplier((attacker.stages.accuracy||0)-(defender.stages.evasion||0));
@@ -333,16 +333,38 @@ class Battle {
     const raw=canonicalStats(base,p.level),hp=Math.round(raw.hp*(p.healthScale||1)),stats={...raw,hp};p.originalStats={...stats};p.stats={...stats};p.maxHp=hp;p.hp=clamp(Math.round(hpRatio*p.maxHp),p.hp>0?1:0,p.maxHp);
   }
   tryEvolution(p) {
-    if(!this.speciesById.size||p.transformed)return false;
+    if(!this.speciesById.size||p.transformed||p.evolution)return false;
     const canonical=Dex.species.get(p.originalSpecies),threshold=p.nextEvolutionLevel||Math.min(8,Math.max(5,Number(canonical?.evoLevel)||8));
     if(p.level<threshold)return false;
     const nextIds=(canonical?.evos||[]).map(idOf).filter(id=>this.speciesById.has(id));
-    if(!nextIds.length)return false;
-    const nextId=nextIds[Math.floor(this.random()*nextIds.length)],species=this.speciesById.get(nextId),previousSpecies=p.species,previousName=p.name,nextCanonical=Dex.species.get(nextId);
-    p.species=species.id;p.originalSpecies=species.id;p.nextEvolutionLevel=(nextCanonical?.evos||[]).map(idOf).some(id=>this.speciesById.has(id))?p.level+2:null;p.name=species.name;p.sprite=species.sprite;p.spriteAnimated=species.spriteAnimated;p.types=[...species.types];p.originalTypes=[...species.types];p.transformed=false;p.originalMoves=null;
-    const raw=canonicalStats(species.baseStats,p.level),hp=Math.round(raw.hp*(p.healthScale||1)),stats={...raw,hp};p.originalStats={...stats};p.stats={...stats};p.maxHp=hp;p.hp=p.maxHp;
+    if(!nextIds.length){p.nextEvolutionLevel=null;return false;}
+    const nextId=nextIds[Math.floor(this.random()*nextIds.length)],previousSpecies=p.species,previousName=p.name;
+    p.evolution={fromSpecies:previousSpecies,toSpecies:nextId,elapsed:0,duration:2.6};
+    p.action=null;p.attackLock=0;p.castLock=0;p.vx=0;p.vy=0;p.knockX=0;p.knockY=0;
+    p.protect=Math.max(p.protect||0,p.evolution.duration+.25);
+    this.event('evolutionStart',previousName+' is evolving!',{team:p.team,sourceSpecies:previousSpecies,targetSpecies:nextId,species:nextId,x:p.x,y:p.y,duration:p.evolution.duration});
+    return true;
+  }
+  finishEvolution(p) {
+    const transition=p.evolution;if(!transition)return false;
+    const species=this.speciesById.get(transition.toSpecies);
+    if(!species){p.evolution=null;return false;}
+    const previousName=p.name,previousSpecies=p.species,nextCanonical=Dex.species.get(species.id);
+    p.evolution=null;p.species=species.id;p.originalSpecies=species.id;
+    p.nextEvolutionLevel=(nextCanonical?.evos||[]).map(idOf).some(id=>this.speciesById.has(id))?p.level+2:null;
+    p.name=species.name;p.sprite=species.sprite;p.spriteAnimated=species.spriteAnimated;p.types=[...species.types];p.originalTypes=[...species.types];p.transformed=false;p.originalMoves=null;
+    const raw=canonicalStats(species.baseStats,p.level),hp=Math.round(raw.hp*(p.healthScale||1)),stats={...raw,hp};
+    p.originalStats={...stats};p.stats={...stats};p.maxHp=hp;p.hp=p.maxHp;
     p.abilityName=nextCanonical?.abilities?.['0']||species.abilities?.['0']||'';p.ability=SUPPORTED_ABILITIES.has(idOf(p.abilityName))?idOf(p.abilityName):'';p.abilityImplemented=SUPPORTED_ABILITIES.has(idOf(p.abilityName));
-    this.event('evolution',`${previousName} evolved into ${p.name} and recovered all HP!`,{team:p.team,sourceSpecies:previousSpecies,targetSpecies:p.species,species:p.species,x:p.x,y:p.y});this.effect('summon',p.x,p.y,p.types[0],p.name,1.2);return true;
+    p.status=null;p.statusTime=0;p.toxicCounter=0;p.confusion=0;p.flinch=0;p.hitstun=0;p.hurtTime=0;p.action=null;p.attackLock=0;p.castLock=0;p.vx=0;p.vy=0;p.knockX=0;p.knockY=0;
+    this.event('evolution',previousName+' evolved into '+p.name+' and recovered all HP!',{team:p.team,sourceSpecies:previousSpecies,targetSpecies:p.species,species:p.species,x:p.x,y:p.y});
+    this.effect('summon',p.x,p.y,p.types[0],p.name,1.2);return true;
+  }
+  updateEvolution(p,dt) {
+    if(!p.evolution)return false;
+    p.evolution.elapsed=Math.min(p.evolution.duration,p.evolution.elapsed+dt);
+    if(p.evolution.elapsed+1e-8<p.evolution.duration)return true;
+    this.finishEvolution(p);return false;
   }
   awardExperience(teamIndex,amount=60,notify=true) {
     if(this.mode!=='battle-royale')return;
@@ -354,7 +376,7 @@ class Battle {
   }
   eliminate(teamIndex, reason='eliminated') { const p=this.active(teamIndex);if(p&&p.hp>0)this.dealDamage(p,p.hp,null,null);if(this.mode==='battle-royale'){const alive=this.teams.map(t=>t.roster.some(mon=>mon.hp>0));const count=alive.filter(Boolean).length;if(count<=1)this.finish(count===1?alive.findIndex(Boolean):null,reason);} }
   dealDamage(p,amount,source,move,context={}) {
-    if(p.hp<=0)return;
+    if(p.hp<=0||p.evolution)return 0;
     const dealt=Math.min(p.hp,Math.max(0,Math.floor(amount)));p.hp-=dealt;
     this.effect('damage',p.x,p.y-20,move?effectiveType(move):'Normal',String(dealt),.8);
     if(dealt>0){p.hurtTime=.26;this.event('hurt',`${p.name} took ${dealt} damage.`,{team:p.team,targetSpecies:p.species,sourceSpecies:context.sourceSpecies||source?.species||null,move:move?.id||null,actionId:context.actionId||null,damage:dealt,x:p.x,y:p.y,duration:.26});}
@@ -470,6 +492,7 @@ class Battle {
       const t=this.teams[teamIndex];t.switchCooldown=Math.max(0,t.switchCooldown-dt);t.attackWait=Math.max(0,t.attackWait-dt);
       for(let slot=0;slot<t.roster.length;slot++)this.updatePokemon(t.roster[slot],dt,slot===t.active);
       let p=this.active(teamIndex);
+      if(p.hp>0&&this.updateEvolution(p,dt)){p.vx=0;p.vy=0;continue;}
       if(p.hp<=0) {
         t.respawn-=dt;
         const next=t.roster.findIndex(candidate=>candidate.hp>0);
@@ -523,7 +546,7 @@ class Battle {
   }
   snapshot() {
     return {type:'state',id:this.id,tick:this.tick,time:this.time,phase:this.phase,paused:this.paused,arenaId:this.arena.id,zone:this.zone?{...this.zone,timeToStart:Math.max(0,this.zone.startsAt-this.time),closing:this.time>=this.zone.startsAt}:null,
-      remaining:this.teams.filter(t=>t.roster.some(p=>p.hp>0)).length,eliminations:[...this.eliminations],fighters:this.teams.map((t,i)=>{const p=this.active(i);return {id:p.id,team:p.team,slot:p.slot,species:p.species,name:p.name,level:p.level,xp:p.xp,nextEvolutionLevel:p.nextEvolutionLevel,x:p.x,y:p.y,vx:p.vx,vy:p.vy,radius:p.radius,facing:p.facing,hp:p.hp,maxHp:p.maxHp,types:p.types,status:p.status,statusTime:p.statusTime,protect:p.protect,dodge:p.dodge,dodgeCooldown:p.dodgeCooldown,stages:p.stages,cooldowns:p.moves.map(m=>m.pp<=0?p.struggleCooldown:m.cooldown),pp:p.moves.map(m=>m.pp),maxPp:p.moves.map(m=>m.maxPp),moves:p.moves.map(m=>m.id),switchCooldown:t.switchCooldown,ability:p.abilityName,abilityImplemented:p.abilityImplemented,confusion:p.confusion,counter:p.counter,m1Cooldown:p.m1Cooldown||0,action:p.action?{...p.action,direction:{...p.action.direction}}:null,deployment:p.deployment?{...p.deployment}:null,hitstun:p.hitstun,hurtTime:p.hurtTime,freezeImmunity:p.freezeImmunity};}),
+      remaining:this.teams.filter(t=>t.roster.some(p=>p.hp>0)).length,eliminations:[...this.eliminations],fighters:this.teams.map((t,i)=>{const p=this.active(i);return {id:p.id,team:p.team,slot:p.slot,species:p.species,name:p.name,level:p.level,xp:p.xp,nextEvolutionLevel:p.nextEvolutionLevel,x:p.x,y:p.y,vx:p.vx,vy:p.vy,radius:p.radius,facing:p.facing,hp:p.hp,maxHp:p.maxHp,types:p.types,status:p.status,statusTime:p.statusTime,protect:p.protect,dodge:p.dodge,dodgeCooldown:p.dodgeCooldown,stages:p.stages,cooldowns:p.moves.map(m=>m.pp<=0?p.struggleCooldown:m.cooldown),pp:p.moves.map(m=>m.pp),maxPp:p.moves.map(m=>m.maxPp),moves:p.moves.map(m=>m.id),switchCooldown:t.switchCooldown,ability:p.abilityName,abilityImplemented:p.abilityImplemented,confusion:p.confusion,counter:p.counter,m1Cooldown:p.m1Cooldown||0,action:p.action?{...p.action,direction:{...p.action.direction}}:null,deployment:p.deployment?{...p.deployment}:null,hitstun:p.hitstun,hurtTime:p.hurtTime,freezeImmunity:p.freezeImmunity,evolution:p.evolution?{...p.evolution}:null};}),
       benches:this.teams.map(t=>t.roster.map(p=>({species:p.species,name:p.name,hp:p.hp,maxHp:p.maxHp,status:p.status}))),
       projectiles:this.projectiles.map(({owner,...s})=>s),ppOrbs:this.ppOrbs.map(orb=>({...orb})),effects:this.effects,events:this.events};
   }
