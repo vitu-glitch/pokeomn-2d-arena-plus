@@ -24,3 +24,22 @@
 .team-page{height:100%;display:flex;flex-direction:column;padding-bottom:20px;min-height:0}.team-page>.back-button{align-self:flex-start;flex-shrink:0}.team-page>.page-heading{flex-shrink:0}.team-page .team-layout{flex:1;min-height:0;overflow:hidden;align-items:stretch}.team-page .team-roster{overflow-y:auto;min-height:0;padding:4px 8px 8px 4px;scrollbar-width:thin;scrollbar-color:#424b67 transparent}.team-catalog{display:flex;flex-direction:column;min-width:0;min-height:0}.team-catalog>.searchbar{flex-shrink:0}.team-catalog>#catalog-results{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:4px 8px 12px 4px;scrollbar-width:thin;scrollbar-color:#424b67 transparent}.move-card.struggle{opacity:1;border-top-color:#ccb790}.move-card.struggle .move-pp{color:#c5b993}.keybindings{display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;margin-top:20px}.binding-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:12px}.binding-row>div{display:flex;gap:5px}.binding-key{min-width:65px;padding:9px 10px;border:1px solid #66708766;border-radius:5px;background:#30384e;font-size:10px;text-align:center}.binding-key.listening{border-color:var(--yellow);color:var(--yellow);background:#4a4535}.binding-status{min-height:38px;font-size:12px;line-height:1.5;margin-top:15px;color:var(--yellow)}
 @media(max-width:800px){.team-page .team-layout{grid-template-columns:225px 1fr;gap:16px}.team-page .team-roster{display:flex;flex-direction:column}.team-page .roster-card{display:grid;grid-template-columns:48px 1fr;text-align:left}.team-page .selected-detail{display:block}.team-page .team-note{font-size:10px}.keybindings{grid-template-columns:1fr}}
 @media(max-width:600px){.team-page .team-layout{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}.team-page .team-roster{display:grid;grid-template-columns:repeat(3,1fr);overflow:visible;padding:0;gap:6px}.team-page .roster-card{display:flex;flex-direction:column;padding:8px;text-align:center}.team-page .selected-detail,.team-page .team-note{display:none}.team-page .page-heading{margin-bottom:14px}.team-page .page-heading h1{font-size:34px}.team-page .page-heading .pill{display:none}.team-page>.back-button{margin-bottom:12px}}
+
+
+/* Battle Royale starter and selection */
+.royale-layout{align-items:start;grid-template-columns:minmax(0,1fr) minmax(270px,320px)}
+.royale-summary{position:sticky;top:14px}
+.royale-starter{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid #ffffff1b;border-radius:14px;background:color-mix(in srgb,var(--type,#7c9f86) 12%,#0d1724);margin:14px 0}
+.royale-starter img{width:82px;height:82px;object-fit:contain;image-rendering:pixelated;flex:0 0 82px}
+.royale-starter h2{margin:0 0 7px;font-size:22px;color:var(--text,#f5f2e8)}
+.royale-starter .type-chip{font-size:9px}
+.royale-summary>p{font-size:12px;line-height:1.65;color:var(--muted,#a5b1c2)}
+.royale-rules{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:15px 0 18px}
+.royale-rules span{font-size:10px;line-height:1.4;color:var(--muted,#c2ccda);padding:9px;background:#ffffff08;border:1px solid #ffffff12;border-radius:8px}
+.royale-grid{grid-template-columns:repeat(5,minmax(0,1fr))}
+.royale-page .catalog-count{margin-bottom:10px}
+.royale-page .pokemon-card{min-width:0}
+.royale-page .pokemon-card.chosen{border-color:var(--gold,#e8c775);box-shadow:inset 0 0 0 1px #e8c77544}
+.royale-summary .field{margin-top:13px}
+@media(max-width:950px){.royale-layout{grid-template-columns:minmax(0,1fr) 270px}.royale-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:700px){.royale-layout{grid-template-columns:1fr}.royale-summary{position:static;order:-1}.royale-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
