@@ -219,7 +219,7 @@
 .intro-screen #intro-enter .pad-key{width:30px;height:30px;display:grid;place-items:center;margin:0;border:2px solid #1e405c;border-radius:5px;background:#f0cb4e;color:#1a3851;font-size:12px;font-weight:900}
 .intro-button-copy{display:flex;flex-direction:column;gap:4px;text-align:left}
 .intro-button-copy b{font-size:10px;font-weight:900;letter-spacing:1.1px}
-.intro-button-copy small{font-size:7px;letter-spacing:1px;color:#6d8491}
+.intro-button-copy small{display:block;margin-top:0;font-size:7px;letter-spacing:1px;color:#6d8491}
 .intro-button-arrow{font-size:20px;color:#e15754;margin-left:8px}
 .intro-version-copy{display:flex;flex-direction:column;gap:7px;align-items:flex-end;font-size:8px;font-weight:800;letter-spacing:1.2px;color:#b4c6d0}
 .intro-version-copy span:last-child{font-size:7px;color:#839eae}
